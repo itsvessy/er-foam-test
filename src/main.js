@@ -118,6 +118,18 @@ app.innerHTML = `
     </div>
   </header>
 
+  <details class="help-panel">
+    <summary>Help / How to use</summary>
+    <div class="help-body">
+      <p>This is a test harness for ER selection and layer recommendations.</p>
+      <ol>
+        <li>Use the inputs to calculate your ER #, or override it directly and adjust the tolerance.</li>
+        <li>Add and adjust foam layers, thickness, and grade.</li>
+        <li>Review the Computed panel for calculated metrics.</li>
+      </ol>
+    </div>
+  </details>
+
   <section class="layout">
     <div class="column">
       <form class="panel" id="input-form">
@@ -150,19 +162,20 @@ app.innerHTML = `
         <div class="field">
           <label for="override-input">Manual ER Override</label>
           <input id="override-input" type="number" min="1" step="1" placeholder="e.g., 32" />
-          <small>If filled, this overrides the calculated ER.</small>
+          <small>Sets the Target ER directly and takes priority over the calculated value.</small>
         </div>
-          <div class="field">
-            <label for="tolerance-input">Tolerance (+/-)</label>
-            <input id="tolerance-input" type="number" min="0" step="1" value="5" />
-          </div>
+        <div class="field">
+          <label for="tolerance-input">Tolerance (+/-)</label>
+          <input id="tolerance-input" type="number" min="0" step="1" value="5" />
+          <small>Allowed +/- range when auto-suggesting foam grades.</small>
+        </div>
         </div>
       </form>
 
       <div class="panel computed-panel">
         <div class="computed-head">
           <h2>Computed</h2>
-          <div class="status-pill" id="status-text">Waiting for input</div>
+          <div class="status-pill" id="status-text">Waiting for Inputs</div>
         </div>
         <div class="computed-grid">
           <div class="computed-item">
@@ -454,44 +467,51 @@ function computeTotalPrice(layers) {
   return sum
 }
 
-function pickClosest(candidates, desired, preferredSide, tolerance) {
-  if (!candidates.length) return null
+function rankCandidates(candidates, desired, preferredSide, tolerance, limit = 3) {
+  if (!candidates.length || !Number.isFinite(desired)) return []
   const filtered = candidates.filter((g) => Number.isFinite(g.derivedEr))
-  if (!filtered.length) return null
+  if (!filtered.length) return []
   const withinTol = filtered.filter((g) => Math.abs(g.derivedEr - desired) <= tolerance)
-  const pool = withinTol.length ? withinTol : filtered
-  const minDiff = Math.min(...pool.map((g) => Math.abs(g.derivedEr - desired)))
-  let best = pool.filter((g) => Math.abs(g.derivedEr - desired) === minDiff)
-
-  if (best.length > 1 && preferredSide) {
-    if (preferredSide === 'softer') {
-      const minEr = Math.min(...best.map((g) => g.derivedEr))
-      best = best.filter((g) => g.derivedEr === minEr)
-    } else {
-      const maxEr = Math.max(...best.map((g) => g.derivedEr))
-      best = best.filter((g) => g.derivedEr === maxEr)
-    }
+  const sorter = (a, b) => {
+    const diffA = Math.abs(a.derivedEr - desired)
+    const diffB = Math.abs(b.derivedEr - desired)
+    if (diffA !== diffB) return diffA - diffB
+    if (preferredSide === 'softer' && a.derivedEr !== b.derivedEr) return a.derivedEr - b.derivedEr
+    if (preferredSide === 'firmer' && a.derivedEr !== b.derivedEr) return b.derivedEr - a.derivedEr
+    return a.code.localeCompare(b.code)
   }
 
-  best.sort((a, b) => a.code.localeCompare(b.code))
-  return best[0]?.code || null
+  const sortedWithin = [...withinTol].sort(sorter)
+  const sortedAll = [...filtered].sort(sorter)
+  const combined = uniqueCodes([...sortedWithin.map((g) => g.code), ...sortedAll.map((g) => g.code)])
+  return combined.slice(0, limit)
 }
 
-function suggestGradeForLayer(index, context) {
+function uniqueCodes(codes) {
+  const seen = new Set()
+  const result = []
+  codes.forEach((code) => {
+    if (!code || seen.has(code)) return
+    seen.add(code)
+    result.push(code)
+  })
+  return result
+}
+
+function getSuggestionListForLayer(index, context, contributions, erDepth) {
   const { targetEr, preferredSide, budget, tolerance } = context
-  if (targetEr === null || !budget) return null
+  if (targetEr === null || !budget) return []
 
   const budgetGrades = state.grades.filter((grade) => grade.bucket === budget)
   const candidates = budgetGrades.length ? budgetGrades : state.grades
-  if (!candidates.length) return null
+  if (!candidates.length) return []
 
-  const { contributions, totalThickness, erDepth } = computeContributions(state.layers)
   const tNew = contributions[index]
-
   if (tNew <= 0) {
+    const ranked = rankCandidates(candidates, targetEr, preferredSide, tolerance, 3)
     const prev = index > 0 ? state.layers[index - 1].gradeCode : null
-    if (prev) return prev
-    return pickClosest(candidates, targetEr, preferredSide, tolerance)
+    const combined = uniqueCodes(prev ? [prev, ...ranked] : ranked)
+    return combined.slice(0, 3)
   }
 
   let sum = 0
@@ -514,19 +534,22 @@ function suggestGradeForLayer(index, context) {
   let desired = targetEr
   if (!missing && erDepth > 0) {
     desired = (targetEr * erDepth - sum) / tNew
-  } else {
-    desired = targetEr
   }
 
-  return pickClosest(candidates, desired, preferredSide, tolerance)
+  return rankCandidates(candidates, desired, preferredSide, tolerance, 3)
 }
 
-function applyAutoSelections(context) {
+function suggestGradeForLayer(index, context, contributions, erDepth) {
+  const suggestions = getSuggestionListForLayer(index, context, contributions, erDepth)
+  return suggestions[0] || null
+}
+
+function applyAutoSelections(context, contributions, erDepth) {
   let changed = false
   for (let i = 0; i < state.layers.length; i += 1) {
     const layer = state.layers[i]
     if (!layer.auto) continue
-    const suggestion = suggestGradeForLayer(i, context)
+    const suggestion = suggestGradeForLayer(i, context, contributions, erDepth)
     if (suggestion && layer.gradeCode !== suggestion) {
       layer.gradeCode = suggestion
       changed = true
@@ -549,7 +572,7 @@ function buildGradeOptions(selectedCode) {
   return html
 }
 
-function renderLayers(contributions, erDepth) {
+function renderLayers(contributions, erDepth, suggestions = []) {
   const total = state.layers.length
   layersContainer.innerHTML = state.layers
     .map((layer, index) => {
@@ -561,6 +584,10 @@ function renderLayers(contributions, erDepth) {
         ? `ER impact: ${contribution.toFixed(2)}" of ${erDepth.toFixed(2)}"`
         : 'Below the first 6"'
       const meta = []
+      const suggestionList = suggestions[index] || []
+      const primary = suggestionList[0]
+      const alternates = suggestionList.slice(1, 3)
+      const selectedCode = layer.gradeCode
       if (grade) {
         meta.push(`Grade ER: ${Number.isFinite(erValue) ? erValue : '—'}`)
         meta.push(`Price: ${formatPrice(grade.price)}`)
@@ -576,7 +603,6 @@ function renderLayers(contributions, erDepth) {
           <div class="layer-header">
             <div>
               <div class="layer-title">${title}</div>
-              <div class="layer-sub">${impactText}</div>
             </div>
             <div class="layer-actions">
               <button type="button" class="icon-btn" data-action="move-up" data-index="${index}" ${index === 0 ? 'disabled' : ''} aria-label="Move layer up" data-tooltip="Move up">
@@ -597,9 +623,9 @@ function renderLayers(contributions, erDepth) {
             </div>
           </div>
           <div class="layer-body">
-            <div class="field">
+            <div class="field thickness-field">
               <label>Thickness (in)</label>
-              <input type="number" min="0" step="0.25" data-field="thickness" data-index="${index}" value="${layer.thickness}" />
+              <input class="thickness-input" type="number" min="0" step="0.25" data-field="thickness" data-index="${index}" value="${layer.thickness}" />
             </div>
             <div class="field">
               <label>Foam Grade</label>
@@ -608,6 +634,30 @@ function renderLayers(contributions, erDepth) {
               </select>
             </div>
           </div>
+          ${primary ? `
+            <div class="layer-suggestions">
+              <div class="suggestions-group">
+                <div class="suggestions-label">Suggested</div>
+                <div class="suggestions-list">
+          ${primary ? `
+            <button type="button" class="suggestion-chip ${selectedCode === primary ? 'selected' : ''}" data-action="select-suggestion" data-index="${index}" data-code="${escapeHtml(primary)}">
+              ${escapeHtml(primary)}
+            </button>
+          ` : ''}
+        </div>
+      </div>
+      <div class="suggestions-group">
+        <div class="suggestions-label">Other</div>
+        <div class="suggestions-list">
+          ${alternates.length ? alternates.map((code) => `
+            <button type="button" class="suggestion-chip ${selectedCode === code ? 'selected' : ''}" data-action="select-suggestion" data-index="${index}" data-code="${escapeHtml(code)}">
+              ${escapeHtml(code)}
+            </button>
+          `).join('') : '<div class="suggestions-empty">No other foam grades recommended.</div>'}
+        </div>
+      </div>
+            </div>
+          ` : ''}
           <div class="layer-meta">
             ${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join('')}
           </div>
@@ -673,14 +723,18 @@ function updateAll() {
     tolerance,
   }
 
-  applyAutoSelections(context)
+  applyAutoSelections(context, contributions, erDepth)
 
   const actualEr = computeActualEr(state.layers, contributions, erDepth)
   const totalPrice = computeTotalPrice(state.layers)
 
+  const suggestions = state.layers.map((_, index) =>
+    getSuggestionListForLayer(index, context, contributions, erDepth),
+  )
+
   updateSummary({ target, preferredSide, actualEr, totalThickness, erDepth, totalPrice })
   updateStatus({ target, budget, preferredSide, actualEr, contributions })
-  renderLayers(contributions, erDepth)
+  renderLayers(contributions, erDepth, suggestions)
 }
 
 function addLayerAt(index) {
@@ -729,6 +783,15 @@ layersContainer.addEventListener('click', (event) => {
     case 'add-below':
       addLayerAt(index + 1)
       break
+    case 'select-suggestion': {
+      const code = actionButton.dataset.code
+      if (code) {
+        state.layers[index].gradeCode = code
+        state.layers[index].auto = false
+        updateAll()
+      }
+      break
+    }
     case 'remove':
       removeLayer(index)
       break
