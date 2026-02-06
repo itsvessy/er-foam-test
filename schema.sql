@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS submissions (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  weight_value TEXT,
+  weight_label TEXT,
+  back_condition TEXT,
+  firmness TEXT,
+  budget TEXT,
+  override_er REAL,
+  tolerance REAL,
+  target_er REAL,
+  actual_er REAL,
+  delta_er REAL,
+  total_thickness REAL,
+  er_depth REAL,
+  total_price REAL,
+  layers_json TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  user_agent TEXT
+);

@@ -609,6 +609,42 @@ button.compact {
   padding: 8px 0;
 }
 
+.submit-panel {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--foam-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.submit-panel button {
+  min-width: 150px;
+}
+
+.submit-status {
+  font-size: 0.85rem;
+  color: var(--foam-muted);
+  text-align: right;
+  max-width: 220px;
+}
+
+.submit-status[data-tone="success"] {
+  color: #1f7a3f;
+  font-weight: 600;
+}
+
+.submit-status[data-tone="error"] {
+  color: #a23434;
+  font-weight: 600;
+}
+
+.submit-status[data-tone="pending"] {
+  color: var(--foam-blue);
+  font-weight: 600;
+}
+
 @media (max-width: 900px) {
   .hero {
     grid-template-columns: 1fr;

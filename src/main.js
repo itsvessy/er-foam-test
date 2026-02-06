@@ -264,6 +264,10 @@ app.innerHTML = `
         <button type="button" class="ghost" id="add-layer">Add Layer</button>
       </div>
       <div id="layers-container"></div>
+      <div class="submit-panel">
+        <button type="button" id="submit-build">Submit Build</button>
+        <div class="submit-status" id="submit-status">Not submitted</div>
+      </div>
     </div>
   </section>
 `
@@ -287,6 +291,8 @@ const totalPriceText = document.querySelector('#total-price')
 const budgetTable = document.querySelector('#budget-table')
 const layersContainer = document.querySelector('#layers-container')
 const addLayerButton = document.querySelector('#add-layer')
+const submitButton = document.querySelector('#submit-build')
+const submitStatus = document.querySelector('#submit-status')
 
 const state = {
   grades: [],
@@ -405,6 +411,17 @@ function getPreferredSide() {
 function getBudgetSelection() {
   const radio = document.querySelector('input[name="budget"]:checked')
   return radio ? radio.value : null
+}
+
+function getSelectedOptionData(selectEl) {
+  const selected = selectEl.selectedOptions[0]
+  if (!selected) return null
+  const er = Number(selected.dataset.er)
+  return {
+    value: selected.value || null,
+    label: selected.textContent || null,
+    er: Number.isFinite(er) ? er : null,
+  }
 }
 
 function computeTargetEr() {
@@ -727,6 +744,112 @@ function updateStatus({ target, budget, preferredSide, actualEr, contributions }
   statusText.textContent = 'Ready'
 }
 
+function buildSubmissionPayload() {
+  const weight = getSelectedOptionData(weightSelect)
+  const back = getSelectedOptionData(backSelect)
+  const firmness = getSelectedOptionData(firmnessSelect)
+  const budget = getBudgetSelection()
+  const target = computeTargetEr()
+  const preferredSide = getPreferredSide()
+  const { contributions, totalThickness, erDepth } = computeContributions(state.layers)
+  const actualEr = computeActualEr(state.layers, contributions, erDepth)
+  const totalPrice = computeTotalPrice(state.layers)
+  const deltaEr = target && Number.isFinite(actualEr) ? actualEr - target.value : null
+
+  const layers = state.layers.map((layer, index) => {
+    const grade = layer.gradeCode ? state.gradeByCode.get(layer.gradeCode) : null
+    return {
+      index,
+      thickness: clampThickness(layer.thickness),
+      gradeCode: layer.gradeCode || null,
+      auto: layer.auto,
+      grade: grade
+        ? {
+            label: grade.label_feature || null,
+            price: grade.price ?? null,
+            bucket: grade.bucket || null,
+            derivedEr: grade.derivedEr ?? null,
+          }
+        : null,
+    }
+  })
+
+  return {
+    createdAt: new Date().toISOString(),
+    inputs: {
+      weight,
+      back,
+      firmness,
+      budget,
+      overrideEr: overrideInput.value !== '' ? Number(overrideInput.value) : null,
+      tolerance: Number(toleranceInput.value) || 0,
+      preferredSide,
+    },
+    computed: {
+      targetEr: target ? target.value : null,
+      targetSource: target ? target.source : null,
+      actualEr: Number.isFinite(actualEr) ? actualEr : null,
+      deltaEr: Number.isFinite(deltaEr) ? deltaEr : null,
+      totalThickness,
+      erDepth,
+      totalPrice: Number.isFinite(totalPrice) ? totalPrice : null,
+    },
+    layers,
+  }
+}
+
+function validateSubmission(payload) {
+  if (!payload.inputs.weight || !payload.inputs.back || !payload.inputs.firmness || !payload.inputs.budget) {
+    return 'Complete the required inputs before submitting.'
+  }
+  if (!Number.isFinite(payload.computed.targetEr)) {
+    return 'Target ER is missing.'
+  }
+  const hasThickness = payload.layers.some((layer) => layer.thickness > 0)
+  if (!hasThickness) {
+    return 'Add at least one layer with thickness.'
+  }
+  const missingGrade = payload.layers.some((layer) => layer.thickness > 0 && !layer.gradeCode)
+  if (missingGrade) {
+    return 'Select a foam grade for each non-zero layer.'
+  }
+  return null
+}
+
+function setSubmitStatus(message, tone = 'muted') {
+  submitStatus.textContent = message
+  submitStatus.dataset.tone = tone
+}
+
+async function handleSubmit() {
+  const payload = buildSubmissionPayload()
+  const validationError = validateSubmission(payload)
+  if (validationError) {
+    setSubmitStatus(validationError, 'error')
+    return
+  }
+
+  submitButton.disabled = true
+  setSubmitStatus('Submitting…', 'pending')
+  try {
+    const response = await fetch('/api/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!response.ok) {
+      throw new Error(`Submit failed (${response.status})`)
+    }
+    const data = await response.json().catch(() => ({}))
+    const suffix = data && data.id ? ` (${String(data.id).slice(0, 8)})` : ''
+    setSubmitStatus(`Submitted${suffix}`, 'success')
+  } catch (error) {
+    setSubmitStatus('Submit failed. Try again.', 'error')
+  } finally {
+    submitButton.disabled = false
+  }
+}
+
 function updateAll() {
   const budget = getBudgetSelection()
   const target = computeTargetEr()
@@ -843,6 +966,10 @@ layersContainer.addEventListener('change', (event) => {
 
 addLayerButton.addEventListener('click', () => {
   addLayerAt(state.layers.length)
+})
+
+submitButton.addEventListener('click', () => {
+  handleSubmit()
 })
 
 toggleInputsButton.addEventListener('click', () => {
