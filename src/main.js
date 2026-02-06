@@ -421,16 +421,22 @@ function computeTargetEr() {
   return { value: weightEr + backEr + firmEr, source: 'Calculated' }
 }
 
+function clampThickness(value) {
+  const num = Number(value)
+  if (!Number.isFinite(num)) return 0
+  return Math.max(0, num)
+}
+
 function computeContributions(layers) {
   let remaining = 6
   const contributions = layers.map((layer) => {
-    const thickness = Number(layer.thickness) || 0
+    const thickness = clampThickness(layer.thickness)
     if (remaining <= 0) return 0
     const contribution = Math.max(0, Math.min(thickness, remaining))
     remaining -= contribution
     return contribution
   })
-  const totalThickness = layers.reduce((sum, layer) => sum + (Number(layer.thickness) || 0), 0)
+  const totalThickness = layers.reduce((sum, layer) => sum + clampThickness(layer.thickness), 0)
   const erDepth = Math.min(6, totalThickness)
   return { contributions, totalThickness, erDepth }
 }
@@ -454,7 +460,7 @@ function computeTotalPrice(layers) {
   let sum = 0
   let hasThickness = false
   for (let i = 0; i < layers.length; i += 1) {
-    const thickness = Number(layers[i].thickness) || 0
+    const thickness = clampThickness(layers[i].thickness)
     if (thickness <= 0) continue
     hasThickness = true
     const code = layers[i].gradeCode
@@ -465,6 +471,15 @@ function computeTotalPrice(layers) {
   }
   if (!hasThickness) return null
   return sum
+}
+
+function hasMissingPriceGrade(layers) {
+  for (let i = 0; i < layers.length; i += 1) {
+    const thickness = clampThickness(layers[i].thickness)
+    if (thickness <= 0) continue
+    if (!layers[i].gradeCode) return true
+  }
+  return false
 }
 
 function rankCandidates(candidates, desired, preferredSide, tolerance, limit = 3) {
@@ -699,6 +714,10 @@ function updateStatus({ target, budget, preferredSide, actualEr, contributions }
   const missingGrade = contributions.some((contribution, idx) => contribution > 0 && !state.layers[idx].gradeCode)
   if (missingGrade) {
     statusText.textContent = 'Select foam grades for layers within the first 6".'
+    return
+  }
+  if (hasMissingPriceGrade(state.layers)) {
+    statusText.textContent = 'Select foam grades for all non-zero layers to estimate price.'
     return
   }
   if (!Number.isFinite(actualEr)) {
