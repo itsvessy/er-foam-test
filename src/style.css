@@ -28,6 +28,7 @@ body {
   min-height: 100vh;
   background: radial-gradient(1200px 600px at 10% 10%, #fdfbf7 0%, #f2f6fb 55%, #e3ecf6 100%);
   color: var(--foam-ink);
+  -webkit-text-size-adjust: 100%;
 }
 
 a {
@@ -140,9 +141,14 @@ a {
   align-items: start;
 }
 
+.layout > * {
+  min-width: 0;
+}
+
 .column {
   display: grid;
   gap: 20px;
+  min-width: 0;
 }
 
 .panel {
@@ -151,6 +157,7 @@ a {
   border-radius: 18px;
   padding: 22px;
   box-shadow: var(--foam-shadow);
+  min-width: 0;
 }
 
 .panel h2,
@@ -205,8 +212,10 @@ a {
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--foam-border);
-  font-size: 0.95rem;
+  font-size: 16px;
   font-family: inherit;
+  width: 100%;
+  max-width: 100%;
 }
 
 .field small {
@@ -658,6 +667,35 @@ button.compact {
 
   .layout {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  #app {
+    padding: 24px 16px 48px;
+  }
+
+  .panel {
+    padding: 18px;
+  }
+
+  .layer-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .layer-actions {
+    width: 100%;
+  }
+
+  .submit-panel {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .submit-status {
+    text-align: left;
+    max-width: none;
   }
 }
 .field-divider {

@@ -758,6 +758,41 @@ function updateStatus({ target, budget, preferredSide, actualEr, contributions }
   })
 }
 
+function getLayerFocusInfo() {
+  const active = document.activeElement
+  if (!active || !(active instanceof HTMLElement)) return null
+  if (!layersContainer.contains(active)) return null
+  const field = active.dataset.field
+  const index = active.dataset.index
+  if (!field || index === undefined) return null
+  const info = {
+    field,
+    index,
+  }
+  if ('selectionStart' in active && 'selectionEnd' in active) {
+    info.selectionStart = active.selectionStart
+    info.selectionEnd = active.selectionEnd
+  }
+  return info
+}
+
+function restoreLayerFocus(info) {
+  if (!info) return
+  const selector = `[data-field="${info.field}"][data-index="${info.index}"]`
+  const next = layersContainer.querySelector(selector)
+  if (!next || !(next instanceof HTMLElement)) return
+  requestAnimationFrame(() => {
+    next.focus()
+    if (
+      'selectionStart' in next &&
+      'selectionEnd' in next &&
+      Number.isFinite(info.selectionStart)
+    ) {
+      next.setSelectionRange(info.selectionStart, info.selectionEnd ?? info.selectionStart)
+    }
+  })
+}
+
 function buildSubmissionPayload() {
   const weight = getSelectedOptionData(weightSelect)
   const back = getSelectedOptionData(backSelect)
@@ -936,9 +971,11 @@ function updateAll() {
     getSuggestionListForLayer(index, context, contributions, erDepth),
   )
 
+  const focusInfo = getLayerFocusInfo()
   updateSummary({ target, preferredSide, actualEr, totalThickness, erDepth, totalPrice })
   updateStatus({ target, budget, preferredSide, actualEr, contributions })
   renderLayers(contributions, erDepth, suggestions)
+  restoreLayerFocus(focusInfo)
 }
 
 function addLayerAt(index) {
