@@ -116,19 +116,19 @@ app.innerHTML = `
     <div>
       <div class="eyebrow">Foamite • ER Selector Test</div>
       <h1>ER # Foam Grade Selector</h1>
-      <p>Build a layered stack, see the ER number update, and test budget-strict grade preselection.</p>
+      <p>Calculate your ER number, configure the build you'd specify for a customer, and submit.</p>
     </div>
   </header>
 
   <details class="help-panel">
     <summary>Help / How to use</summary>
     <div class="help-body">
-      <p>This is a test harness for ER selection and layer recommendations.</p>
+      <p>Enter customer parameters to generate an ER number, then configure the layers you would actually specify. The ER updates as you adjust the build.</p>
+      <p>Submitting captures your inputs, both ER values, and layer configuration for analysis.</p>
       <ol>
-        <li>Use the inputs to calculate your ER #, or override it directly and adjust the tolerance.</li>
-        <li>Add and adjust foam layers, thickness, and grade.</li>
-        <li>Review the Computed panel for calculated metrics.</li>
-        <li>Submit the build to save it for analysis.</li>
+        <li><strong>Calculate the ER number.</strong> Input customer weight, firmness preference, and sleep position to generate the baseline ER value.</li>
+        <li><strong>Configure the actual build.</strong> Adjust foam layers and grades to match what you'd actually specify, even if it differs from the calculated ER.</li>
+        <li><strong>Submit the configuration.</strong> Send your inputs and final build so we can capture real specification decisions for analysis.</li>
       </ol>
     </div>
   </details>
