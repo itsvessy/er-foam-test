@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS submissions;
 CREATE TABLE IF NOT EXISTS submissions (
   id TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -14,6 +15,13 @@ CREATE TABLE IF NOT EXISTS submissions (
   total_thickness REAL,
   er_depth REAL,
   total_price REAL,
+  status_text TEXT,
+  calc_version TEXT,
+  app_version TEXT,
+  budget_min REAL,
+  budget_p33 REAL,
+  budget_p66 REAL,
+  budget_max REAL,
   layers_json TEXT NOT NULL,
   payload_json TEXT NOT NULL,
   user_agent TEXT

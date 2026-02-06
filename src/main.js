@@ -107,6 +107,8 @@ const FIRMNESS_GROUPS = [
 ]
 
 const SOFT_MED_KEYS = new Set(['super-soft', 'soft', 'medium-soft', 'medium'])
+const CALC_VERSION = 'er-v1'
+const APP_VERSION = (import.meta?.env && import.meta.env.VITE_APP_VERSION) || 'local'
 
 const app = document.querySelector('#app')
 app.innerHTML = `
@@ -126,6 +128,7 @@ app.innerHTML = `
         <li>Use the inputs to calculate your ER #, or override it directly and adjust the tolerance.</li>
         <li>Add and adjust foam layers, thickness, and grade.</li>
         <li>Review the Computed panel for calculated metrics.</li>
+        <li>Submit the build to save it for analysis.</li>
       </ol>
     </div>
   </details>
@@ -265,7 +268,10 @@ app.innerHTML = `
       </div>
       <div id="layers-container"></div>
       <div class="submit-panel">
-        <button type="button" id="submit-build">Submit Build</button>
+        <div class="submit-actions">
+          <button type="button" class="ghost" id="reset-build">Reset</button>
+          <button type="button" id="submit-build">Submit Build</button>
+        </div>
         <div class="submit-status" id="submit-status">Not submitted</div>
       </div>
     </div>
@@ -291,6 +297,7 @@ const totalPriceText = document.querySelector('#total-price')
 const budgetTable = document.querySelector('#budget-table')
 const layersContainer = document.querySelector('#layers-container')
 const addLayerButton = document.querySelector('#add-layer')
+const resetButton = document.querySelector('#reset-build')
 const submitButton = document.querySelector('#submit-build')
 const submitStatus = document.querySelector('#submit-status')
 
@@ -723,25 +730,32 @@ function updateSummary({ target, preferredSide, actualEr, totalThickness, erDept
   totalPriceText.textContent = Number.isFinite(totalPrice) ? `${formatPrice(totalPrice)} / sqft` : '—'
 }
 
-function updateStatus({ target, budget, preferredSide, actualEr, contributions }) {
+function computeStatusText({ target, budget, preferredSide, actualEr, contributions, layers }) {
   if (!target || !budget || !preferredSide) {
-    statusText.textContent = 'Waiting for Inputs'
-    return
+    return 'Waiting for Inputs'
   }
-  const missingGrade = contributions.some((contribution, idx) => contribution > 0 && !state.layers[idx].gradeCode)
+  const missingGrade = contributions.some((contribution, idx) => contribution > 0 && !layers[idx].gradeCode)
   if (missingGrade) {
-    statusText.textContent = 'Select foam grades for layers within the first 6".'
-    return
+    return 'Select foam grades for layers within the first 6".'
   }
-  if (hasMissingPriceGrade(state.layers)) {
-    statusText.textContent = 'Select foam grades for all non-zero layers to estimate price.'
-    return
+  if (hasMissingPriceGrade(layers)) {
+    return 'Select foam grades for all non-zero layers to estimate price.'
   }
   if (!Number.isFinite(actualEr)) {
-    statusText.textContent = 'Waiting for valid grades to compute ER.'
-    return
+    return 'Waiting for valid grades to compute ER.'
   }
-  statusText.textContent = 'Ready'
+  return 'Ready'
+}
+
+function updateStatus({ target, budget, preferredSide, actualEr, contributions }) {
+  statusText.textContent = computeStatusText({
+    target,
+    budget,
+    preferredSide,
+    actualEr,
+    contributions,
+    layers: state.layers,
+  })
 }
 
 function buildSubmissionPayload() {
@@ -755,14 +769,36 @@ function buildSubmissionPayload() {
   const actualEr = computeActualEr(state.layers, contributions, erDepth)
   const totalPrice = computeTotalPrice(state.layers)
   const deltaEr = target && Number.isFinite(actualEr) ? actualEr - target.value : null
+  const context = {
+    targetEr: target ? target.value : null,
+    preferredSide,
+    budget,
+    tolerance: Number(toleranceInput.value) || 0,
+  }
+  const statusTextValue = computeStatusText({
+    target,
+    budget,
+    preferredSide,
+    actualEr,
+    contributions,
+    layers: state.layers,
+  })
 
   const layers = state.layers.map((layer, index) => {
     const grade = layer.gradeCode ? state.gradeByCode.get(layer.gradeCode) : null
+    const suggestionList = getSuggestionListForLayer(index, context, contributions, erDepth)
     return {
       index,
+      label: layerTitle(index, state.layers.length),
       thickness: clampThickness(layer.thickness),
+      contribution: contributions[index] || 0,
       gradeCode: layer.gradeCode || null,
       auto: layer.auto,
+      recommendations: {
+        primary: suggestionList[0] || null,
+        alternates: suggestionList.slice(1, 3),
+        all: suggestionList,
+      },
       grade: grade
         ? {
             label: grade.label_feature || null,
@@ -776,13 +812,24 @@ function buildSubmissionPayload() {
 
   return {
     createdAt: new Date().toISOString(),
+    meta: {
+      status: statusTextValue,
+      calcVersion: CALC_VERSION,
+      appVersion: APP_VERSION,
+      budgetThresholds: {
+        min: state.budget.min,
+        p33: state.budget.p33,
+        p66: state.budget.p66,
+        max: state.budget.max,
+      },
+    },
     inputs: {
       weight,
       back,
       firmness,
       budget,
       overrideEr: overrideInput.value !== '' ? Number(overrideInput.value) : null,
-      tolerance: Number(toleranceInput.value) || 0,
+      tolerance: context.tolerance,
       preferredSide,
     },
     computed: {
@@ -819,6 +866,21 @@ function validateSubmission(payload) {
 function setSubmitStatus(message, tone = 'muted') {
   submitStatus.textContent = message
   submitStatus.dataset.tone = tone
+}
+
+function resetAll() {
+  weightSelect.selectedIndex = 0
+  backSelect.selectedIndex = 0
+  firmnessSelect.selectedIndex = 0
+  document.querySelectorAll('input[name="budget"]').forEach((radio) => {
+    radio.checked = false
+  })
+  overrideInput.value = ''
+  toleranceInput.value = '5'
+  state.nextId = 1
+  state.layers = [createLayer()]
+  setSubmitStatus('Not submitted', 'muted')
+  updateAll()
 }
 
 async function handleSubmit() {
@@ -966,6 +1028,10 @@ layersContainer.addEventListener('change', (event) => {
 
 addLayerButton.addEventListener('click', () => {
   addLayerAt(state.layers.length)
+})
+
+resetButton.addEventListener('click', () => {
+  resetAll()
 })
 
 submitButton.addEventListener('click', () => {

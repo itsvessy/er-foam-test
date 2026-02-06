@@ -14,9 +14,11 @@ export async function onRequestPost(context) {
   const id = crypto.randomUUID()
   const createdAt = new Date().toISOString()
 
+  const meta = payload.meta || {}
   const inputs = payload.inputs || {}
   const computed = payload.computed || {}
   const layers = Array.isArray(payload.layers) ? payload.layers : []
+  const budgetThresholds = meta.budgetThresholds || {}
 
   const payloadJson = JSON.stringify(payload)
   const layersJson = JSON.stringify(layers)
@@ -39,10 +41,17 @@ export async function onRequestPost(context) {
         total_thickness,
         er_depth,
         total_price,
+        status_text,
+        calc_version,
+        app_version,
+        budget_min,
+        budget_p33,
+        budget_p66,
+        budget_max,
         layers_json,
         payload_json,
         user_agent
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       id,
@@ -60,6 +69,13 @@ export async function onRequestPost(context) {
       computed.totalThickness ?? null,
       computed.erDepth ?? null,
       computed.totalPrice ?? null,
+      meta.status ?? null,
+      meta.calcVersion ?? null,
+      meta.appVersion ?? null,
+      budgetThresholds.min ?? null,
+      budgetThresholds.p33 ?? null,
+      budgetThresholds.p66 ?? null,
+      budgetThresholds.max ?? null,
       layersJson,
       payloadJson,
       context.request.headers.get('User-Agent')

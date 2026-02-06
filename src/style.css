@@ -619,8 +619,14 @@ button.compact {
   gap: 12px;
 }
 
+.submit-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .submit-panel button {
-  min-width: 150px;
+  min-width: 120px;
 }
 
 .submit-status {
