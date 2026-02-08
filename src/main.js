@@ -106,8 +106,55 @@ const FIRMNESS_GROUPS = [
   },
 ]
 
+const GOOD_CODES = ['1517', '1530', '1535', '1543', '1570']
+const BETTER_TOP_CODES = ['MF12']
+const BETTER_BASE_CODES = ['EC26', 'EC36', 'EC46', 'EC55']
+const BEST_TOP_CODES = ['LX19', 'LX28', 'LX36', 'LX46']
+const BEST_BASE_CODES = ['PR18', 'PR23', 'PR28', 'PR35', 'PR40', 'PR50', 'PR60']
+const CUSTOM_OPTION_KEY = 'foamite-custom-spec'
+const MATTRESS_SIZE_GROUPS = [
+  {
+    label: 'Create Your Own',
+    options: [
+      {
+        value: 'custom',
+        label: 'Custom Size',
+      },
+    ],
+  },
+  {
+    label: 'Choose a Common Size',
+    options: [
+      { value: '28x52-crib', label: '28" x 52" Crib', width: 28, height: 52 },
+      { value: '30x72-camp', label: '30" x 72" Camp', width: 30, height: 72 },
+      { value: '30x80-split-queen', label: '30" x 80" Split Queen', width: 30, height: 80 },
+      { value: '35x79-euro-single', label: '35" x 79" Euro Single', width: 35, height: 79 },
+      { value: '36x72-camp', label: '36" x 72" Camp', width: 36, height: 72 },
+      { value: '39x75-twin-or-single', label: '39" x 75" Twin or Single', width: 39, height: 75 },
+      { value: '39x80-single-xl', label: '39" x 80" Single XL', width: 39, height: 80 },
+      { value: '48x75-three-quarter', label: '48" x 75" Three Quarter', width: 48, height: 75 },
+      { value: '52x72-double-sofa-bed', label: '52" x 72" Double Sofa Bed', width: 52, height: 72 },
+      { value: '54x75-double', label: '54" x 75" Double', width: 54, height: 75 },
+      { value: '54x80-double-xl', label: '54" x 80" Double XL', width: 54, height: 80 },
+      { value: '59x72-queen-sofa-bed', label: '59" x 72" Queen Sofa Bed', width: 59, height: 72 },
+      { value: '60x75-short-queen', label: '60" x 75" Short Queen', width: 60, height: 75 },
+      { value: '60x80-queen', label: '60" x 80" Queen', width: 60, height: 80 },
+      { value: '60x84-waterbed-queen', label: '60" x 84" Waterbed Queen', width: 60, height: 84 },
+      { value: '63x79-euro-queen', label: '63" x 79" Euro Queen', width: 63, height: 79 },
+      { value: '66x80-olympic-queen', label: '66" x 80" Olympic Queen', width: 66, height: 80 },
+      { value: '71x79-euro-king', label: '71" x 79" Euro King', width: 71, height: 79 },
+      { value: '72x84-california-king', label: '72" x 84" California King', width: 72, height: 84 },
+      { value: '76x80-king', label: '76" x 80" King', width: 76, height: 80 },
+      { value: '80x96-grand-king', label: '80" x 96" Grand King', width: 80, height: 96 },
+      { value: '84x84-wyoming-king', label: '84" x 84" Wyoming King', width: 84, height: 84 },
+      { value: '96x96-alberta-king', label: '96" x 96" Alberta King', width: 96, height: 96 },
+      { value: '108x108-alaskan-king', label: '108" x 108" Alaskan King', width: 108, height: 108 },
+    ],
+  },
+]
+
 const SOFT_MED_KEYS = new Set(['super-soft', 'soft', 'medium-soft', 'medium'])
-const CALC_VERSION = 'er-v1'
+const CALC_VERSION = 'er-v2-options'
 const APP_VERSION = (import.meta?.env && import.meta.env.VITE_APP_VERSION) || 'local'
 
 const app = document.querySelector('#app')
@@ -116,19 +163,18 @@ app.innerHTML = `
     <div>
       <div class="eyebrow">Foamite • ER Selector Test</div>
       <h1>ER # Foam Grade Selector</h1>
-      <p>Calculate your ER number, configure the build you'd specify for a customer, and submit.</p>
+      <p>Build mattress options from ER inputs, then customize your selected build before submitting.</p>
     </div>
   </header>
 
   <details class="help-panel">
     <summary>Help / How to use</summary>
     <div class="help-body">
-      <p>Enter customer parameters to generate an ER number, then configure the layers you would actually specify. The ER updates as you adjust the build.</p>
-      <p>Submitting captures your inputs, both ER values, and layer configuration for analysis.</p>
       <ol>
-        <li><strong>Calculate the ER number.</strong> Input customer weight, firmness preference, and sleep position to generate the baseline ER value.</li>
-        <li><strong>Configure the actual build.</strong> Adjust foam layers and grades to match what you'd actually specify, even if it differs from the calculated ER.</li>
-        <li><strong>Submit the configuration.</strong> Send your inputs and final build so we can capture real specification decisions for analysis.</li>
+        <li><strong>Enter customer and mattress inputs.</strong> Select weight/back/firmness, choose a mattress size preset (or enter custom width and length), then confirm thickness and ER controls.</li>
+        <li><strong>Build options.</strong> Click <em>Build Mattresses</em> to generate Value, Performance, Long-Life, and Foamite Custom Spec options.</li>
+        <li><strong>Select one option to unlock Layers.</strong> The Layers panel stays blank until you select an option; choose Foamite Custom Spec to start from a blank build.</li>
+        <li><strong>Customize and submit.</strong> Adjust layers as needed, then submit to save your generated options and final selected build.</li>
       </ol>
     </div>
   </details>
@@ -153,25 +199,54 @@ app.innerHTML = `
             <label for="firmness-select">Preferred Firmness</label>
             <select id="firmness-select" required></select>
           </div>
-        <div class="field">
-          <label>Budget</label>
-          <div class="radio-group" role="radiogroup" aria-label="Budget selection">
-            <label class="radio-card"><input type="radio" name="budget" value="$" required> $</label>
-            <label class="radio-card"><input type="radio" name="budget" value="$$" required> $$</label>
-            <label class="radio-card"><input type="radio" name="budget" value="$$$" required> $$$</label>
+
+          <div class="field">
+            <label for="mattress-size-select">Mattress Size Preset</label>
+            <select id="mattress-size-select"></select>
+            <small>Selecting a preset fills width/length. You can still edit both fields.</small>
           </div>
-        </div>
-        <div class="field-divider" role="presentation"></div>
-        <div class="field">
-          <label for="override-input">Manual ER Override</label>
-          <input id="override-input" type="number" min="1" step="1" placeholder="e.g., 32" />
-          <small>Sets the Target ER directly and takes priority over the calculated value.</small>
-        </div>
-        <div class="field">
-          <label for="tolerance-input">Tolerance (+/-)</label>
-          <input id="tolerance-input" type="number" min="0" step="1" value="5" />
-          <small>Allowed +/- range when auto-suggesting foam grades.</small>
-        </div>
+
+          <div class="field-grid dimensions-grid">
+            <div class="field">
+              <label for="width-input">Width (in)</label>
+              <input id="width-input" type="number" min="1" step="0.25" placeholder="e.g., 60" required />
+            </div>
+            <div class="field">
+              <label for="length-input">Length (in)</label>
+              <input id="length-input" type="number" min="1" step="0.25" placeholder="e.g., 80" required />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="mattress-thickness-input">Mattress Thickness (in)</label>
+            <input id="mattress-thickness-input" type="number" min="0.25" step="0.25" value="10" placeholder="e.g., 10" required />
+          </div>
+          <div class="field">
+            <button type="button" id="build-options">Build Mattresses</button>
+          </div>
+
+          <div class="field-divider" role="presentation"></div>
+
+          <div class="field">
+            <label for="override-input">Manual ER Override</label>
+            <input id="override-input" type="number" min="1" step="1" placeholder="e.g., 32" />
+            <small>Sets the Target ER directly and takes priority over calculated ER.</small>
+          </div>
+
+          <div class="field-grid">
+            <div class="field">
+              <label for="tolerance-input">Tolerance (+/-)</label>
+              <input id="tolerance-input" type="number" min="0" step="1" value="5" />
+            </div>
+            <div class="field">
+              <label for="top-min-input">Top Layer Min (in)</label>
+              <input id="top-min-input" type="number" min="0" step="0.25" value="3" />
+            </div>
+            <div class="field">
+              <label for="bottom-min-input">Bottom Layer Min (in)</label>
+              <input id="bottom-min-input" type="number" min="0" step="0.25" value="2" />
+            </div>
+          </div>
         </div>
       </form>
 
@@ -184,95 +259,80 @@ app.innerHTML = `
           <div class="computed-item">
             <div class="computed-label">
               <span class="label-text">Target ER</span>
-              <span class="info-icon" data-tooltip="Weight + back condition + firmness, or manual override.">
-                <span class="material-symbols-rounded" aria-hidden="true">info</span>
-              </span>
             </div>
             <strong id="target-er">—</strong>
           </div>
           <div class="computed-item">
             <div class="computed-label">
               <span class="label-text">Actual ER</span>
-              <span class="info-icon" data-tooltip="Weighted ER of the top 6 in of selected layers.">
-                <span class="material-symbols-rounded" aria-hidden="true">info</span>
-              </span>
             </div>
             <strong id="actual-er">—</strong>
           </div>
           <div class="computed-item">
             <div class="computed-label">
               <span class="label-text">Delta</span>
-              <span class="info-icon" data-tooltip="Actual ER minus Target ER.">
-                <span class="material-symbols-rounded" aria-hidden="true">info</span>
-              </span>
             </div>
             <strong id="delta-er">—</strong>
           </div>
           <div class="computed-item">
             <div class="computed-label">
               <span class="label-text">Source</span>
-              <span class="info-icon" data-tooltip="Whether Target ER is calculated or overridden.">
-                <span class="material-symbols-rounded" aria-hidden="true">info</span>
-              </span>
             </div>
             <strong id="target-source">—</strong>
           </div>
           <div class="computed-item">
             <div class="computed-label">
               <span class="label-text">Preferred Side</span>
-              <span class="info-icon" data-tooltip="Tie-breaker for suggestions: softer or firmer.">
-                <span class="material-symbols-rounded" aria-hidden="true">info</span>
-              </span>
             </div>
             <strong id="preferred-side">—</strong>
           </div>
           <div class="computed-item">
             <div class="computed-label">
               <span class="label-text">Total Thickness</span>
-              <span class="info-icon" data-tooltip="Sum of all layer thicknesses.">
-                <span class="material-symbols-rounded" aria-hidden="true">info</span>
-              </span>
             </div>
             <strong id="total-thickness">—</strong>
           </div>
           <div class="computed-item">
             <div class="computed-label">
               <span class="label-text">ER Depth</span>
-              <span class="info-icon" data-tooltip="Depth used to compute ER (max 6 in).">
-                <span class="material-symbols-rounded" aria-hidden="true">info</span>
-              </span>
             </div>
             <strong id="er-depth">—</strong>
           </div>
           <div class="computed-item">
             <div class="computed-label">
-              <span class="label-text">Total Price</span>
-              <span class="info-icon" data-tooltip="Estimated price per square foot (price/bf * thickness).">
-                <span class="material-symbols-rounded" aria-hidden="true">info</span>
-              </span>
+              <span class="label-text">Estimated Price</span>
             </div>
             <strong id="total-price">—</strong>
           </div>
         </div>
-        <div class="computed-budget">
-          <div class="computed-budget-title">Budget Thresholds (CAD / bf)</div>
-          <div class="budget-table" id="budget-table"></div>
-        </div>
       </div>
     </div>
 
-    <div class="panel layers-panel">
-      <div class="layers-header">
-        <h2>Layers</h2>
-        <button type="button" class="ghost" id="add-layer">Add Layer</button>
-      </div>
-      <div id="layers-container"></div>
-      <div class="submit-panel">
-        <div class="submit-actions">
-          <button type="button" class="ghost" id="reset-build">Reset</button>
-          <button type="button" id="submit-build">Submit Build</button>
+    <div class="column">
+      <div class="panel options-panel">
+        <div class="panel-header">
+          <h2>Build Options</h2>
+          <button type="button" class="ghost compact" id="toggle-options" aria-expanded="true">Hide Options</button>
         </div>
-        <div class="submit-status" id="submit-status">Not submitted</div>
+        <div class="collapsible-body" id="options-body">
+          <div class="build-status" id="options-status" data-tone="muted">No options built yet.</div>
+          <div class="options-list" id="options-container"></div>
+        </div>
+      </div>
+
+      <div class="panel layers-panel">
+        <div class="layers-header">
+          <h2>Layers</h2>
+          <button type="button" class="ghost" id="add-layer">Add Layer</button>
+        </div>
+        <div id="layers-container"></div>
+        <div class="submit-panel">
+          <div class="submit-actions">
+            <button type="button" class="ghost" id="reset-build">Reset</button>
+            <button type="button" id="submit-build">Submit Build</button>
+          </div>
+          <div class="submit-status" id="submit-status" data-tone="muted">Not submitted</div>
+        </div>
       </div>
     </div>
   </section>
@@ -281,10 +341,23 @@ app.innerHTML = `
 const weightSelect = document.querySelector('#weight-select')
 const backSelect = document.querySelector('#back-select')
 const firmnessSelect = document.querySelector('#firmness-select')
+const mattressSizeSelect = document.querySelector('#mattress-size-select')
+const widthInput = document.querySelector('#width-input')
+const lengthInput = document.querySelector('#length-input')
+const mattressThicknessInput = document.querySelector('#mattress-thickness-input')
 const overrideInput = document.querySelector('#override-input')
 const toleranceInput = document.querySelector('#tolerance-input')
+const topMinInput = document.querySelector('#top-min-input')
+const bottomMinInput = document.querySelector('#bottom-min-input')
 const inputForm = document.querySelector('#input-form')
 const toggleInputsButton = document.querySelector('#toggle-inputs')
+
+const buildOptionsButton = document.querySelector('#build-options')
+const optionsPanel = document.querySelector('.options-panel')
+const toggleOptionsButton = document.querySelector('#toggle-options')
+const optionsStatus = document.querySelector('#options-status')
+const optionsContainer = document.querySelector('#options-container')
+
 const statusText = document.querySelector('#status-text')
 const targetErText = document.querySelector('#target-er')
 const actualErText = document.querySelector('#actual-er')
@@ -294,7 +367,7 @@ const preferredSideText = document.querySelector('#preferred-side')
 const totalThicknessText = document.querySelector('#total-thickness')
 const erDepthText = document.querySelector('#er-depth')
 const totalPriceText = document.querySelector('#total-price')
-const budgetTable = document.querySelector('#budget-table')
+
 const layersContainer = document.querySelector('#layers-container')
 const addLayerButton = document.querySelector('#add-layer')
 const resetButton = document.querySelector('#reset-build')
@@ -305,14 +378,12 @@ const state = {
   grades: [],
   gradeGroups: [],
   gradeByCode: new Map(),
-  budget: {
-    p33: null,
-    p66: null,
-    min: null,
-    max: null,
-  },
   layers: [],
   nextId: 1,
+  generatedOptions: [],
+  selectedOptionKey: null,
+  optionsFingerprint: null,
+  submitting: false,
 }
 
 function escapeHtml(value) {
@@ -339,7 +410,31 @@ function buildSelect(selectEl, groups, placeholder) {
       const opt = document.createElement('option')
       opt.value = option.value
       opt.textContent = option.label
-      opt.dataset.er = option.er
+      opt.dataset.er = String(option.er)
+      optgroup.appendChild(opt)
+    })
+    selectEl.appendChild(optgroup)
+  })
+}
+
+function buildMattressSizeSelect(selectEl) {
+  selectEl.innerHTML = ''
+
+  const placeholder = document.createElement('option')
+  placeholder.value = ''
+  placeholder.textContent = 'Custom or Common Size?'
+  placeholder.selected = true
+  selectEl.appendChild(placeholder)
+
+  MATTRESS_SIZE_GROUPS.forEach((group) => {
+    const optgroup = document.createElement('optgroup')
+    optgroup.label = group.label
+    group.options.forEach((option) => {
+      const opt = document.createElement('option')
+      opt.value = option.value
+      opt.textContent = option.label
+      if (Number.isFinite(option.width)) opt.dataset.width = String(option.width)
+      if (Number.isFinite(option.height)) opt.dataset.length = String(option.height)
       optgroup.appendChild(opt)
     })
     selectEl.appendChild(optgroup)
@@ -347,37 +442,26 @@ function buildSelect(selectEl, groups, placeholder) {
 }
 
 function deriveEr(code) {
-  const digits = code.match(/\d+/g)
+  const digits = String(code || '').match(/\d+/g)
   if (!digits) return null
   const joined = digits.join('')
-  if (joined.length >= 2) {
-    return Number(joined.slice(-2))
-  }
+  if (joined.length >= 2) return Number(joined.slice(-2))
   return Number(joined)
 }
 
-function quantile(sorted, q) {
-  if (!sorted.length) return null
-  const pos = (sorted.length - 1) * q
-  const base = Math.floor(pos)
-  const rest = pos - base
-  if (sorted[base + 1] !== undefined) {
-    return sorted[base] + rest * (sorted[base + 1] - sorted[base])
-  }
-  return sorted[base]
+function clampThickness(value) {
+  const num = Number(value)
+  if (!Number.isFinite(num)) return 0
+  return Math.max(0, num)
 }
 
-function formatPrice(value) {
-  if (value === null || value === undefined || Number.isNaN(value)) return 'Price Unknown'
+function roundToQuarter(value) {
+  return Math.round(value * 4) / 4
+}
+
+function formatMoney(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) return '—'
   return `$${Number(value).toFixed(2)}`
-}
-
-function bucketForPrice(price) {
-  const { p33, p66 } = state.budget
-  if (price === null || price === undefined || Number.isNaN(price)) return 'unknown'
-  if (price <= p33) return '$'
-  if (price <= p66) return '$$'
-  return '$$$'
 }
 
 function createLayer({ thickness = 4, gradeCode = '', auto = true } = {}) {
@@ -409,17 +493,6 @@ function getSelectedEr(selectEl) {
   return Number.isFinite(er) ? er : null
 }
 
-function getPreferredSide() {
-  const selected = firmnessSelect.value
-  if (!selected) return null
-  return SOFT_MED_KEYS.has(selected) ? 'softer' : 'firmer'
-}
-
-function getBudgetSelection() {
-  const radio = document.querySelector('input[name="budget"]:checked')
-  return radio ? radio.value : null
-}
-
 function getSelectedOptionData(selectEl) {
   const selected = selectEl.selectedOptions[0]
   if (!selected) return null
@@ -428,6 +501,96 @@ function getSelectedOptionData(selectEl) {
     value: selected.value || null,
     label: selected.textContent || null,
     er: Number.isFinite(er) ? er : null,
+  }
+}
+
+function getSelectedMattressSizeData() {
+  const selected = mattressSizeSelect.selectedOptions[0]
+  if (!selected || !selected.value) return null
+
+  const width = Number(selected.dataset.width)
+  const length = Number(selected.dataset.length ?? selected.dataset.height)
+
+  return {
+    value: selected.value,
+    label: selected.textContent || null,
+    widthIn: Number.isFinite(width) ? width : null,
+    lengthIn: Number.isFinite(length) ? length : null,
+  }
+}
+
+function areDimensionsClose(a, b, epsilon = 0.001) {
+  return Math.abs(a - b) <= epsilon
+}
+
+function findMattressPresetValueByDimensions(width, length) {
+  for (let i = 0; i < MATTRESS_SIZE_GROUPS.length; i += 1) {
+    const group = MATTRESS_SIZE_GROUPS[i]
+    for (let j = 0; j < group.options.length; j += 1) {
+      const option = group.options[j]
+      if (!Number.isFinite(option.width)) continue
+      const optionLength = Number.isFinite(option.length) ? option.length : option.height
+      if (!Number.isFinite(optionLength)) continue
+      if (areDimensionsClose(width, option.width) && areDimensionsClose(length, optionLength)) {
+        return option.value
+      }
+    }
+  }
+  return null
+}
+
+function syncMattressPresetFromDimensions() {
+  const widthRaw = widthInput.value
+  const lengthRaw = lengthInput.value
+
+  if (widthRaw === '' && lengthRaw === '') {
+    if (mattressSizeSelect.value !== '') mattressSizeSelect.value = ''
+    return
+  }
+
+  const width = Number(widthRaw)
+  const length = Number(lengthRaw)
+  const hasValidDimensions = Number.isFinite(width) && width > 0 && Number.isFinite(length) && length > 0
+
+  if (!hasValidDimensions) {
+    if (mattressSizeSelect.value !== 'custom') mattressSizeSelect.value = 'custom'
+    return
+  }
+
+  const matchedPreset = findMattressPresetValueByDimensions(width, length)
+  if (matchedPreset) {
+    if (mattressSizeSelect.value !== matchedPreset) mattressSizeSelect.value = matchedPreset
+    return
+  }
+
+  if (mattressSizeSelect.value !== 'custom') mattressSizeSelect.value = 'custom'
+}
+
+function getPreferredSide() {
+  const selected = firmnessSelect.value
+  if (!selected) return null
+  return SOFT_MED_KEYS.has(selected) ? 'softer' : 'firmer'
+}
+
+function getBuildConfig() {
+  const tolerance = Number(toleranceInput.value)
+  const topLayerMin = Number(topMinInput.value)
+  const bottomLayerMin = Number(bottomMinInput.value)
+  return {
+    tolerance: Number.isFinite(tolerance) ? Math.max(0, tolerance) : 0,
+    topLayerMin: Number.isFinite(topLayerMin) ? Math.max(0, topLayerMin) : 0,
+    bottomLayerMin: Number.isFinite(bottomLayerMin) ? Math.max(0, bottomLayerMin) : 0,
+  }
+}
+
+function getDimensions() {
+  const width = Number(widthInput.value)
+  const length = Number(lengthInput.value)
+  const mattressThickness = Number(mattressThicknessInput.value)
+  return {
+    width: Number.isFinite(width) && width > 0 ? width : null,
+    length: Number.isFinite(length) && length > 0 ? length : null,
+    mattressThickness: Number.isFinite(mattressThickness) && mattressThickness > 0 ? mattressThickness : null,
   }
 }
 
@@ -440,15 +603,8 @@ function computeTargetEr() {
   const weightEr = getSelectedEr(weightSelect)
   const backEr = getSelectedEr(backSelect)
   const firmEr = getSelectedEr(firmnessSelect)
-
   if (weightEr === null || backEr === null || firmEr === null) return null
   return { value: weightEr + backEr + firmEr, source: 'Calculated' }
-}
-
-function clampThickness(value) {
-  const num = Number(value)
-  if (!Number.isFinite(num)) return 0
-  return Math.max(0, num)
 }
 
 function computeContributions(layers) {
@@ -466,7 +622,7 @@ function computeContributions(layers) {
 }
 
 function computeActualEr(layers, contributions, erDepth) {
-  if (erDepth === 0) return null
+  if (erDepth <= 0) return null
   let sum = 0
   for (let i = 0; i < layers.length; i += 1) {
     const contribution = contributions[i]
@@ -480,21 +636,21 @@ function computeActualEr(layers, contributions, erDepth) {
   return sum / erDepth
 }
 
-function computeTotalPrice(layers) {
-  let sum = 0
+function computeEstimatedPrice(layers, width, length) {
+  if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(length) || length <= 0) return null
+  let total = 0
   let hasThickness = false
   for (let i = 0; i < layers.length; i += 1) {
-    const thickness = clampThickness(layers[i].thickness)
+    const layer = layers[i]
+    const thickness = clampThickness(layer.thickness)
     if (thickness <= 0) continue
     hasThickness = true
-    const code = layers[i].gradeCode
-    if (!code) return null
-    const grade = state.gradeByCode.get(code)
+    const grade = state.gradeByCode.get(layer.gradeCode)
     if (!grade || !Number.isFinite(grade.price)) return null
-    sum += grade.price * thickness
+    total += grade.price * (width * length * thickness / 144)
   }
   if (!hasThickness) return null
-  return sum
+  return total
 }
 
 function hasMissingPriceGrade(layers) {
@@ -506,10 +662,22 @@ function hasMissingPriceGrade(layers) {
   return false
 }
 
+function uniqueCodes(codes) {
+  const seen = new Set()
+  const result = []
+  codes.forEach((code) => {
+    if (!code || seen.has(code)) return
+    seen.add(code)
+    result.push(code)
+  })
+  return result
+}
+
 function rankCandidates(candidates, desired, preferredSide, tolerance, limit = 3) {
   if (!candidates.length || !Number.isFinite(desired)) return []
   const filtered = candidates.filter((g) => Number.isFinite(g.derivedEr))
   if (!filtered.length) return []
+
   const withinTol = filtered.filter((g) => Math.abs(g.derivedEr - desired) <= tolerance)
   const sorter = (a, b) => {
     const diffA = Math.abs(a.derivedEr - desired)
@@ -526,23 +694,11 @@ function rankCandidates(candidates, desired, preferredSide, tolerance, limit = 3
   return combined.slice(0, limit)
 }
 
-function uniqueCodes(codes) {
-  const seen = new Set()
-  const result = []
-  codes.forEach((code) => {
-    if (!code || seen.has(code)) return
-    seen.add(code)
-    result.push(code)
-  })
-  return result
-}
-
 function getSuggestionListForLayer(index, context, contributions, erDepth) {
-  const { targetEr, preferredSide, budget, tolerance } = context
-  if (targetEr === null || !budget) return []
+  const { targetEr, preferredSide, tolerance } = context
+  if (targetEr === null) return []
 
-  const budgetGrades = state.grades.filter((grade) => grade.bucket === budget)
-  const candidates = budgetGrades.length ? budgetGrades : state.grades
+  const candidates = state.grades
   if (!candidates.length) return []
 
   const tNew = contributions[index]
@@ -603,15 +759,25 @@ function buildGradeOptions(selectedCode) {
     html += `<optgroup label="${escapeHtml(group.label)}">`
     group.options.forEach((grade) => {
       const selected = grade.code === selectedCode ? 'selected' : ''
-      const label = `${grade.code} — ${grade.label_feature} (${formatPrice(grade.price)} / bf) ${grade.bucket}`
+      const label = `${grade.code} — ${grade.label_feature} (${formatMoney(grade.price)} / bf)`
       html += `<option value="${escapeHtml(grade.code)}" ${selected}>${escapeHtml(label)}</option>`
     })
-    html += `</optgroup>`
+    html += '</optgroup>'
   })
   return html
 }
 
 function renderLayers(contributions, erDepth, suggestions = []) {
+  if (!state.selectedOptionKey) {
+    layersContainer.innerHTML = '<div class="empty">Select a build option to load layers.</div>'
+    return
+  }
+
+  if (!state.layers.length) {
+    layersContainer.innerHTML = '<div class="empty">No layers yet. Click Add Layer to start your custom build.</div>'
+    return
+  }
+
   const total = state.layers.length
   layersContainer.innerHTML = state.layers
     .map((layer, index) => {
@@ -620,8 +786,8 @@ function renderLayers(contributions, erDepth, suggestions = []) {
       const grade = layer.gradeCode ? state.gradeByCode.get(layer.gradeCode) : null
       const erValue = grade?.derivedEr
       const impactText = contribution > 0
-        ? `ER impact: ${contribution.toFixed(2)}" of ${erDepth.toFixed(2)}"`
-        : 'Below the first 6"'
+        ? `ER impact: ${contribution.toFixed(2)}\" of ${erDepth.toFixed(2)}\"`
+        : 'Below the first 6\"'
       const meta = []
       const suggestionList = suggestions[index] || []
       const primary = suggestionList[0]
@@ -629,8 +795,7 @@ function renderLayers(contributions, erDepth, suggestions = []) {
       const selectedCode = layer.gradeCode
       if (grade) {
         meta.push(`Grade ER: ${Number.isFinite(erValue) ? erValue : '—'}`)
-        meta.push(`Price: ${formatPrice(grade.price)}`)
-        meta.push(`Bucket: ${grade.bucket}`)
+        meta.push(`Price: ${formatMoney(grade.price)} / bf`)
         meta.push(`Firmness: ${grade.firmness || '—'}`)
         meta.push(`Quality: ${grade.foam_quality || '—'}`)
         meta.push(`Line: ${grade.groupLabel || '—'}`)
@@ -678,23 +843,21 @@ function renderLayers(contributions, erDepth, suggestions = []) {
               <div class="suggestions-group">
                 <div class="suggestions-label">Suggested</div>
                 <div class="suggestions-list">
-          ${primary ? `
-            <button type="button" class="suggestion-chip ${selectedCode === primary ? 'selected' : ''}" data-action="select-suggestion" data-index="${index}" data-code="${escapeHtml(primary)}">
-              ${escapeHtml(primary)}
-            </button>
-          ` : ''}
-        </div>
-      </div>
-      <div class="suggestions-group">
-        <div class="suggestions-label">Other</div>
-        <div class="suggestions-list">
-          ${alternates.length ? alternates.map((code) => `
-            <button type="button" class="suggestion-chip ${selectedCode === code ? 'selected' : ''}" data-action="select-suggestion" data-index="${index}" data-code="${escapeHtml(code)}">
-              ${escapeHtml(code)}
-            </button>
-          `).join('') : '<div class="suggestions-empty">No other foam grades recommended.</div>'}
-        </div>
-      </div>
+                  <button type="button" class="suggestion-chip ${selectedCode === primary ? 'selected' : ''}" data-action="select-suggestion" data-index="${index}" data-code="${escapeHtml(primary)}">
+                    ${escapeHtml(primary)}
+                  </button>
+                </div>
+              </div>
+              <div class="suggestions-group">
+                <div class="suggestions-label">Other</div>
+                <div class="suggestions-list">
+                  ${alternates.length ? alternates.map((code) => `
+                    <button type="button" class="suggestion-chip ${selectedCode === code ? 'selected' : ''}" data-action="select-suggestion" data-index="${index}" data-code="${escapeHtml(code)}">
+                      ${escapeHtml(code)}
+                    </button>
+                  `).join('') : '<div class="suggestions-empty">No other foam grades recommended.</div>'}
+                </div>
+              </div>
             </div>
           ` : ''}
           <div class="layer-meta">
@@ -706,56 +869,116 @@ function renderLayers(contributions, erDepth, suggestions = []) {
     .join('')
 }
 
-function updateBudgetTable() {
-  const { min, max, p33, p66 } = state.budget
-  if (min === null || max === null) {
-    budgetTable.innerHTML = '<div class="empty">Budget ranges unavailable.</div>'
-    return
-  }
-  budgetTable.innerHTML = `
-    <div class="budget-row"><span>$</span><span>${formatPrice(min)} - ${formatPrice(p33)}</span></div>
-    <div class="budget-row"><span>$$</span><span>${formatPrice(p33)} - ${formatPrice(p66)}</span></div>
-    <div class="budget-row"><span>$$$</span><span>${formatPrice(p66)} - ${formatPrice(max)}</span></div>
-  `
+function setOptionStatus(message, tone = 'muted') {
+  optionsStatus.textContent = message
+  optionsStatus.dataset.tone = tone
 }
 
-function updateSummary({ target, preferredSide, actualEr, totalThickness, erDepth, totalPrice }) {
+function renderOptions() {
+  if (!state.generatedOptions.length) {
+    optionsContainer.innerHTML = '<div class="empty">Click <strong>Build Mattresses</strong> to generate options.</div>'
+    return
+  }
+
+  const target = computeTargetEr()
+  const config = getBuildConfig()
+  const dims = getDimensions()
+  const fingerprint = buildOptionsFingerprint(target, getPreferredSide(), config, dims)
+  const optionsStale = state.optionsFingerprint !== null && state.optionsFingerprint !== fingerprint
+
+  optionsContainer.innerHTML = state.generatedOptions.map((option) => {
+    const selected = state.selectedOptionKey === option.key
+    const metrics = [
+      `Actual ER: ${Number.isFinite(option.actualEr) ? option.actualEr.toFixed(1) : '—'}`,
+      `Delta: ${Number.isFinite(option.delta) ? option.delta.toFixed(1) : '—'}`,
+      `Estimated Price: ${formatMoney(option.estimatedPrice)}`,
+      option.withinTolerance === null
+        ? 'Tolerance: n/a'
+        : option.withinTolerance
+          ? 'Within tolerance'
+          : 'Outside tolerance',
+    ]
+
+    const layers = option.layers.map((layer, index) => {
+      const layerName = layerTitle(index, option.layers.length)
+      return `<li>${escapeHtml(layerName)}: ${escapeHtml(layer.thickness.toFixed(2))}\" • ${escapeHtml(layer.gradeCode || 'Select Grade')}</li>`
+    }).join('')
+
+    return `
+      <article class="option-card ${selected ? 'selected' : ''}">
+        <div class="option-head">
+          <div>
+            <h3>${escapeHtml(option.label)}</h3>
+            <div class="option-note">${escapeHtml(option.note)}</div>
+          </div>
+          <button type="button" data-action="select-option" data-key="${escapeHtml(option.key)}" ${selected ? 'disabled' : ''}>
+            ${selected ? 'Selected' : 'Select'}
+          </button>
+        </div>
+        <div class="option-metrics">
+          ${metrics.map((metric) => `<span>${escapeHtml(metric)}</span>`).join('')}
+        </div>
+        <ul class="option-layers">${layers}</ul>
+      </article>
+    `
+  }).join('')
+
+  if (optionsStale) {
+    optionsContainer.insertAdjacentHTML('afterbegin', '<div class="build-stale">Inputs changed since build. Rebuild recommended.</div>')
+  }
+}
+
+function updateSummary({ target, preferredSide, actualEr, totalThickness, erDepth, estimatedPrice }) {
   targetErText.textContent = target ? target.value : '—'
   actualErText.textContent = Number.isFinite(actualEr) ? actualEr.toFixed(1) : '—'
   deltaErText.textContent = target && Number.isFinite(actualEr) ? (actualEr - target.value).toFixed(1) : '—'
   targetSourceText.textContent = target ? target.source : '—'
   preferredSideText.textContent = preferredSide || '—'
-  totalThicknessText.textContent = Number.isFinite(totalThickness) ? `${totalThickness.toFixed(2)}"` : '—'
-  erDepthText.textContent = Number.isFinite(erDepth) ? `${erDepth.toFixed(2)}"` : '—'
-  totalPriceText.textContent = Number.isFinite(totalPrice) ? `${formatPrice(totalPrice)} / sqft` : '—'
+  totalThicknessText.textContent = Number.isFinite(totalThickness) ? `${totalThickness.toFixed(2)}\"` : '—'
+  erDepthText.textContent = Number.isFinite(erDepth) ? `${erDepth.toFixed(2)}\"` : '—'
+  totalPriceText.textContent = Number.isFinite(estimatedPrice) ? formatMoney(estimatedPrice) : '—'
 }
 
-function computeStatusText({ target, budget, preferredSide, actualEr, contributions, layers }) {
-  if (!target || !budget || !preferredSide) {
-    return 'Waiting for Inputs'
-  }
+function computeStatusText({ target, preferredSide, actualEr, contributions, layers, estimatedPrice }) {
+  if (!target || !preferredSide) return 'Waiting for Inputs'
+  if (!state.generatedOptions.length) return 'Build mattresses to generate options.'
+  if (!state.selectedOptionKey) return 'Select a built option to continue.'
+
   const missingGrade = contributions.some((contribution, idx) => contribution > 0 && !layers[idx].gradeCode)
-  if (missingGrade) {
-    return 'Select foam grades for layers within the first 6".'
-  }
-  if (hasMissingPriceGrade(layers)) {
-    return 'Select foam grades for all non-zero layers to estimate price.'
-  }
-  if (!Number.isFinite(actualEr)) {
-    return 'Waiting for valid grades to compute ER.'
-  }
+  if (missingGrade) return 'Select foam grades for layers within the first 6\".'
+  if (hasMissingPriceGrade(layers)) return 'Select foam grades for all non-zero layers to estimate price.'
+  if (!Number.isFinite(actualEr)) return 'Waiting for valid grades to compute ER.'
+  if (!Number.isFinite(estimatedPrice)) return 'Enter valid dimensions and foam grades to estimate total price.'
   return 'Ready'
 }
 
-function updateStatus({ target, budget, preferredSide, actualEr, contributions }) {
+function updateStatus({ target, preferredSide, actualEr, contributions, estimatedPrice }) {
   statusText.textContent = computeStatusText({
     target,
-    budget,
     preferredSide,
     actualEr,
     contributions,
     layers: state.layers,
+    estimatedPrice,
   })
+}
+
+function updateActionAvailability() {
+  const hasSelection = Boolean(state.selectedOptionKey)
+  addLayerButton.disabled = !hasSelection
+  submitButton.disabled = state.submitting || !hasSelection
+}
+
+function updateComputedPreview() {
+  const target = computeTargetEr()
+  const preferredSide = getPreferredSide()
+  const dims = getDimensions()
+  const { contributions, totalThickness, erDepth } = computeContributions(state.layers)
+  const actualEr = computeActualEr(state.layers, contributions, erDepth)
+  const estimatedPrice = computeEstimatedPrice(state.layers, dims.width, dims.length)
+
+  updateSummary({ target, preferredSide, actualEr, totalThickness, erDepth, estimatedPrice })
+  updateStatus({ target, preferredSide, actualEr, contributions, estimatedPrice })
 }
 
 function getLayerFocusInfo() {
@@ -765,10 +988,7 @@ function getLayerFocusInfo() {
   const field = active.dataset.field
   const index = active.dataset.index
   if (!field || index === undefined) return null
-  const info = {
-    field,
-    index,
-  }
+  const info = { field, index }
   if ('selectionStart' in active && 'selectionEnd' in active) {
     info.selectionStart = active.selectionStart
     info.selectionEnd = active.selectionEnd
@@ -783,41 +1003,278 @@ function restoreLayerFocus(info) {
   if (!next || !(next instanceof HTMLElement)) return
   requestAnimationFrame(() => {
     next.focus()
-    if (
-      'selectionStart' in next &&
-      'selectionEnd' in next &&
-      Number.isFinite(info.selectionStart)
-    ) {
+    if ('selectionStart' in next && 'selectionEnd' in next && Number.isFinite(info.selectionStart)) {
       next.setSelectionRange(info.selectionStart, info.selectionEnd ?? info.selectionStart)
     }
   })
+}
+
+function buildOptionsFingerprint(target, preferredSide, config, dims) {
+  return JSON.stringify({
+    targetEr: target ? target.value : null,
+    targetSource: target ? target.source : null,
+    preferredSide,
+    tolerance: config.tolerance,
+    topLayerMin: config.topLayerMin,
+    bottomLayerMin: config.bottomLayerMin,
+    width: dims.width,
+    length: dims.length,
+    mattressThickness: dims.mattressThickness,
+  })
+}
+
+function evaluateOptionCandidate(key, label, layers, context, note) {
+  const normalizedLayers = layers.map((layer) => ({
+    thickness: roundToQuarter(clampThickness(layer.thickness)),
+    gradeCode: layer.gradeCode,
+  }))
+
+  const { contributions, erDepth } = computeContributions(normalizedLayers)
+  const actualEr = computeActualEr(normalizedLayers, contributions, erDepth)
+  const delta = Number.isFinite(actualEr) ? actualEr - context.targetEr : null
+  const absDelta = Number.isFinite(delta) ? Math.abs(delta) : Number.POSITIVE_INFINITY
+  const withinTolerance = Number.isFinite(absDelta) && absDelta <= context.tolerance
+  const estimatedPrice = computeEstimatedPrice(normalizedLayers, context.width, context.length)
+
+  return {
+    key,
+    label,
+    layers: normalizedLayers,
+    actualEr,
+    delta,
+    absDelta,
+    withinTolerance,
+    estimatedPrice,
+    note,
+    signature: normalizedLayers.map((layer) => `${layer.gradeCode}:${layer.thickness.toFixed(2)}`).join('|'),
+  }
+}
+
+function compareOptionCandidates(a, b, preferredSide) {
+  const epsilon = 1e-9
+
+  if (a.withinTolerance !== b.withinTolerance) return a.withinTolerance ? -1 : 1
+
+  if (Math.abs(a.absDelta - b.absDelta) > epsilon) return a.absDelta - b.absDelta
+
+  if (Number.isFinite(a.absDelta) && Number.isFinite(b.absDelta)) {
+    if (preferredSide === 'softer' && Number.isFinite(a.actualEr) && Number.isFinite(b.actualEr) && a.actualEr !== b.actualEr) {
+      return a.actualEr - b.actualEr
+    }
+    if (preferredSide === 'firmer' && Number.isFinite(a.actualEr) && Number.isFinite(b.actualEr) && a.actualEr !== b.actualEr) {
+      return b.actualEr - a.actualEr
+    }
+  }
+
+  if (Number.isFinite(a.estimatedPrice) && Number.isFinite(b.estimatedPrice) && a.estimatedPrice !== b.estimatedPrice) {
+    return a.estimatedPrice - b.estimatedPrice
+  }
+
+  return a.signature.localeCompare(b.signature)
+}
+
+function pickBestCandidate(candidates, preferredSide) {
+  if (!candidates.length) return null
+  return [...candidates].sort((a, b) => compareOptionCandidates(a, b, preferredSide))[0]
+}
+
+function filterValidCodes(codes) {
+  return codes.filter((code) => state.gradeByCode.has(code))
+}
+
+function buildGoodOption(context) {
+  const codes = filterValidCodes(GOOD_CODES)
+  const candidates = codes.map((code) => (
+    evaluateOptionCandidate(
+      'good',
+      'Value',
+      [{ thickness: context.mattressThickness, gradeCode: code }],
+      context,
+      'Single 1.5 lb Seats & Toppers layer',
+    )
+  ))
+  return pickBestCandidate(candidates, context.preferredSide)
+}
+
+function buildCustomOption(context) {
+  const thickness = roundToQuarter(clampThickness(context.mattressThickness))
+  return {
+    key: CUSTOM_OPTION_KEY,
+    label: 'Foamite Custom Spec',
+    layers: [{ thickness, gradeCode: '' }],
+    actualEr: null,
+    delta: null,
+    absDelta: Number.POSITIVE_INFINITY,
+    withinTolerance: null,
+    estimatedPrice: null,
+    note: 'None of these? Start clean with a blank Foamite spec.',
+    signature: `custom:${thickness.toFixed(2)}`,
+  }
+}
+
+function buildTwoLayerOption({ key, label, topCodes, baseCodes }, context) {
+  if (!Number.isFinite(context.mattressThickness) || context.mattressThickness <= 0) return null
+
+  const validTopCodes = filterValidCodes(topCodes)
+  const validBaseCodes = filterValidCodes(baseCodes)
+  if (!validTopCodes.length) return null
+
+  const candidates = []
+  const total = context.mattressThickness
+  const canSplit = validBaseCodes.length > 0 && total >= context.topLayerMin + context.bottomLayerMin
+
+  if (canSplit) {
+    const startUnits = Math.ceil(context.topLayerMin * 4)
+    const endUnits = Math.floor((total - context.bottomLayerMin) * 4)
+
+    for (let topUnits = startUnits; topUnits <= endUnits; topUnits += 1) {
+      const topThickness = topUnits / 4
+      const bottomThickness = roundToQuarter(total - topThickness)
+      if (bottomThickness < context.bottomLayerMin) continue
+
+      validTopCodes.forEach((topCode) => {
+        validBaseCodes.forEach((baseCode) => {
+          const candidate = evaluateOptionCandidate(
+            key,
+            label,
+            [
+              { thickness: topThickness, gradeCode: topCode },
+              { thickness: bottomThickness, gradeCode: baseCode },
+            ],
+            context,
+            `Top ${topThickness.toFixed(2)}\" ${topCode} + Bottom ${bottomThickness.toFixed(2)}\" ${baseCode}`,
+          )
+          candidates.push(candidate)
+        })
+      })
+    }
+  }
+
+  if (!candidates.length) {
+    validTopCodes.forEach((topCode) => {
+      candidates.push(
+        evaluateOptionCandidate(
+          key,
+          label,
+          [{ thickness: total, gradeCode: topCode }],
+          context,
+          `Single-layer fallback: ${topCode}`,
+        ),
+      )
+    })
+  }
+
+  return pickBestCandidate(candidates, context.preferredSide)
+}
+
+function buildMattressOptions() {
+  const target = computeTargetEr()
+  const preferredSide = getPreferredSide()
+  const dims = getDimensions()
+  const config = getBuildConfig()
+
+  if (!target) {
+    setOptionStatus('Complete ER inputs or provide manual ER override first.', 'error')
+    return
+  }
+  if (!preferredSide) {
+    setOptionStatus('Select firmness preference before building options.', 'error')
+    return
+  }
+  if (!Number.isFinite(dims.width) || !Number.isFinite(dims.length) || !Number.isFinite(dims.mattressThickness)) {
+    setOptionStatus('Enter valid width, length, and mattress thickness.', 'error')
+    return
+  }
+
+  const context = {
+    targetEr: target.value,
+    preferredSide,
+    tolerance: config.tolerance,
+    topLayerMin: config.topLayerMin,
+    bottomLayerMin: config.bottomLayerMin,
+    width: dims.width,
+    length: dims.length,
+    mattressThickness: dims.mattressThickness,
+  }
+
+  const options = [
+    buildGoodOption(context),
+    buildTwoLayerOption({ key: 'better', label: 'Performance', topCodes: BETTER_TOP_CODES, baseCodes: BETTER_BASE_CODES }, context),
+    buildTwoLayerOption({ key: 'best', label: 'Long-Life', topCodes: BEST_TOP_CODES, baseCodes: BEST_BASE_CODES }, context),
+    buildCustomOption(context),
+  ].filter(Boolean)
+
+  if (!options.length) {
+    setOptionStatus('No build options could be generated from current foam data.', 'error')
+    return
+  }
+
+  state.generatedOptions = options
+  state.selectedOptionKey = null
+  state.optionsFingerprint = buildOptionsFingerprint(target, preferredSide, config, dims)
+
+  state.nextId = 1
+  state.layers = []
+
+  setOptionStatus(`Built ${options.length} options. Select one to customize.`, 'success')
+  setSubmitStatus('Not submitted', 'muted')
+  updateAll()
+}
+
+function selectBuiltOption(key) {
+  const option = state.generatedOptions.find((item) => item.key === key)
+  if (!option) return
+
+  state.selectedOptionKey = key
+  state.nextId = 1
+  state.layers = option.layers.map((layer) => createLayer({
+    thickness: layer.thickness,
+    gradeCode: layer.gradeCode,
+    auto: false,
+  }))
+  if (!state.layers.length) state.layers = [createLayer()]
+
+  setOptionStatus(`${option.label} selected. Customize layers before submitting.`, 'success')
+  setSubmitStatus('Not submitted', 'muted')
+  updateAll()
+}
+
+function applyMattressSizePreset() {
+  const preset = getSelectedMattressSizeData()
+  if (!preset) {
+    updateAll()
+    return
+  }
+
+  if (Number.isFinite(preset.widthIn)) widthInput.value = String(preset.widthIn)
+  if (Number.isFinite(preset.lengthIn)) lengthInput.value = String(preset.lengthIn)
+  updateAll()
+}
+
+function getSelectedOption() {
+  if (!state.selectedOptionKey) return null
+  return state.generatedOptions.find((option) => option.key === state.selectedOptionKey) || null
 }
 
 function buildSubmissionPayload() {
   const weight = getSelectedOptionData(weightSelect)
   const back = getSelectedOptionData(backSelect)
   const firmness = getSelectedOptionData(firmnessSelect)
-  const budget = getBudgetSelection()
   const target = computeTargetEr()
   const preferredSide = getPreferredSide()
+  const dims = getDimensions()
+  const config = getBuildConfig()
+
   const { contributions, totalThickness, erDepth } = computeContributions(state.layers)
   const actualEr = computeActualEr(state.layers, contributions, erDepth)
-  const totalPrice = computeTotalPrice(state.layers)
+  const estimatedPrice = computeEstimatedPrice(state.layers, dims.width, dims.length)
   const deltaEr = target && Number.isFinite(actualEr) ? actualEr - target.value : null
+
   const context = {
     targetEr: target ? target.value : null,
     preferredSide,
-    budget,
-    tolerance: Number(toleranceInput.value) || 0,
+    tolerance: config.tolerance,
   }
-  const statusTextValue = computeStatusText({
-    target,
-    budget,
-    preferredSide,
-    actualEr,
-    contributions,
-    layers: state.layers,
-  })
 
   const layers = state.layers.map((layer, index) => {
     const grade = layer.gradeCode ? state.gradeByCode.get(layer.gradeCode) : null
@@ -837,12 +1294,35 @@ function buildSubmissionPayload() {
       grade: grade
         ? {
             label: grade.label_feature || null,
-            price: grade.price ?? null,
-            bucket: grade.bucket || null,
+            pricePerBf: grade.price ?? null,
             derivedEr: grade.derivedEr ?? null,
           }
         : null,
     }
+  })
+
+  const generatedOptions = state.generatedOptions.map((option) => ({
+    key: option.key,
+    label: option.label,
+    note: option.note,
+    actualEr: Number.isFinite(option.actualEr) ? option.actualEr : null,
+    deltaEr: Number.isFinite(option.delta) ? option.delta : null,
+    withinTolerance: option.withinTolerance,
+    estimatedPrice: Number.isFinite(option.estimatedPrice) ? option.estimatedPrice : null,
+    layers: option.layers.map((layer) => ({
+      thickness: layer.thickness,
+      gradeCode: layer.gradeCode,
+    })),
+  }))
+
+  const selectedOption = getSelectedOption()
+  const statusTextValue = computeStatusText({
+    target,
+    preferredSide,
+    actualEr,
+    contributions,
+    layers: state.layers,
+    estimatedPrice,
   })
 
   return {
@@ -851,20 +1331,22 @@ function buildSubmissionPayload() {
       status: statusTextValue,
       calcVersion: CALC_VERSION,
       appVersion: APP_VERSION,
-      budgetThresholds: {
-        min: state.budget.min,
-        p33: state.budget.p33,
-        p66: state.budget.p66,
-        max: state.budget.max,
-      },
+      selectedOptionKey: selectedOption?.key || null,
+      selectedOptionLabel: selectedOption?.label || null,
     },
     inputs: {
       weight,
       back,
       firmness,
-      budget,
+      mattressSizePreset: getSelectedMattressSizeData(),
       overrideEr: overrideInput.value !== '' ? Number(overrideInput.value) : null,
-      tolerance: context.tolerance,
+      tolerance: config.tolerance,
+      topLayerMin: config.topLayerMin,
+      bottomLayerMin: config.bottomLayerMin,
+      widthIn: dims.width,
+      lengthIn: dims.length,
+      heightIn: dims.length,
+      mattressThicknessIn: dims.mattressThickness,
       preferredSide,
     },
     computed: {
@@ -874,15 +1356,25 @@ function buildSubmissionPayload() {
       deltaEr: Number.isFinite(deltaEr) ? deltaEr : null,
       totalThickness,
       erDepth,
-      totalPrice: Number.isFinite(totalPrice) ? totalPrice : null,
+      estimatedPrice: Number.isFinite(estimatedPrice) ? estimatedPrice : null,
     },
+    generatedOptions,
     layers,
   }
 }
 
 function validateSubmission(payload) {
-  if (!payload.inputs.weight || !payload.inputs.back || !payload.inputs.firmness || !payload.inputs.budget) {
-    return 'Complete the required inputs before submitting.'
+  if (!payload.inputs.weight || !payload.inputs.back || !payload.inputs.firmness) {
+    return 'Complete weight, back condition, and firmness inputs before submitting.'
+  }
+  if (!Number.isFinite(payload.inputs.widthIn) || !Number.isFinite(payload.inputs.lengthIn) || !Number.isFinite(payload.inputs.mattressThicknessIn)) {
+    return 'Enter valid width, length, and mattress thickness.'
+  }
+  if (!Array.isArray(payload.generatedOptions) || payload.generatedOptions.length === 0) {
+    return 'Build mattresses before submitting.'
+  }
+  if (!payload.meta.selectedOptionKey) {
+    return 'Select one built option before submitting.'
   }
   if (!Number.isFinite(payload.computed.targetEr)) {
     return 'Target ER is missing.'
@@ -894,6 +1386,9 @@ function validateSubmission(payload) {
   const missingGrade = payload.layers.some((layer) => layer.thickness > 0 && !layer.gradeCode)
   if (missingGrade) {
     return 'Select a foam grade for each non-zero layer.'
+  }
+  if (!Number.isFinite(payload.computed.estimatedPrice)) {
+    return 'Estimated price is missing; confirm dimensions and layer grades.'
   }
   return null
 }
@@ -907,13 +1402,25 @@ function resetAll() {
   weightSelect.selectedIndex = 0
   backSelect.selectedIndex = 0
   firmnessSelect.selectedIndex = 0
-  document.querySelectorAll('input[name="budget"]').forEach((radio) => {
-    radio.checked = false
-  })
+  mattressSizeSelect.selectedIndex = 0
+
+  widthInput.value = ''
+  lengthInput.value = ''
+  mattressThicknessInput.value = '10'
+
   overrideInput.value = ''
   toleranceInput.value = '5'
+  topMinInput.value = '3'
+  bottomMinInput.value = '2'
+
   state.nextId = 1
-  state.layers = [createLayer()]
+  state.layers = []
+  state.generatedOptions = []
+  state.selectedOptionKey = null
+  state.optionsFingerprint = null
+  state.submitting = false
+
+  setOptionStatus('No options built yet.', 'muted')
   setSubmitStatus('Not submitted', 'muted')
   updateAll()
 }
@@ -926,65 +1433,70 @@ async function handleSubmit() {
     return
   }
 
-  submitButton.disabled = true
+  state.submitting = true
+  updateActionAvailability()
   setSubmitStatus('Submitting…', 'pending')
+
   try {
     const response = await fetch('/api/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
-    if (!response.ok) {
-      throw new Error(`Submit failed (${response.status})`)
-    }
+    if (!response.ok) throw new Error(`Submit failed (${response.status})`)
+
     const data = await response.json().catch(() => ({}))
     const suffix = data && data.id ? ` (${String(data.id).slice(0, 8)})` : ''
     setSubmitStatus(`Submitted${suffix}`, 'success')
   } catch (error) {
     setSubmitStatus('Submit failed. Try again.', 'error')
   } finally {
-    submitButton.disabled = false
+    state.submitting = false
+    updateActionAvailability()
   }
 }
 
 function updateAll() {
-  const budget = getBudgetSelection()
   const target = computeTargetEr()
   const preferredSide = getPreferredSide()
-  const tolerance = Number(toleranceInput.value) || 0
+  const dims = getDimensions()
+  const config = getBuildConfig()
 
   const { contributions, totalThickness, erDepth } = computeContributions(state.layers)
 
   const context = {
     targetEr: target ? target.value : null,
     preferredSide,
-    budget,
-    tolerance,
+    tolerance: config.tolerance,
   }
 
   applyAutoSelections(context, contributions, erDepth)
 
   const actualEr = computeActualEr(state.layers, contributions, erDepth)
-  const totalPrice = computeTotalPrice(state.layers)
+  const estimatedPrice = computeEstimatedPrice(state.layers, dims.width, dims.length)
 
   const suggestions = state.layers.map((_, index) =>
     getSuggestionListForLayer(index, context, contributions, erDepth),
   )
 
   const focusInfo = getLayerFocusInfo()
-  updateSummary({ target, preferredSide, actualEr, totalThickness, erDepth, totalPrice })
-  updateStatus({ target, budget, preferredSide, actualEr, contributions })
+  updateSummary({ target, preferredSide, actualEr, totalThickness, erDepth, estimatedPrice })
+  updateStatus({ target, preferredSide, actualEr, contributions, estimatedPrice })
   renderLayers(contributions, erDepth, suggestions)
+  renderOptions()
+  updateActionAvailability()
   restoreLayerFocus(focusInfo)
 }
 
 function addLayerAt(index) {
+  if (!state.selectedOptionKey) return
   const layer = createLayer()
   state.layers.splice(index, 0, layer)
   updateAll()
 }
 
 function duplicateLayer(index) {
+  if (!state.selectedOptionKey) return
   const source = state.layers[index]
   const layer = createLayer({ thickness: source.thickness, gradeCode: source.gradeCode, auto: false })
   state.layers.splice(index + 1, 0, layer)
@@ -992,6 +1504,7 @@ function duplicateLayer(index) {
 }
 
 function moveLayer(from, to) {
+  if (!state.selectedOptionKey) return
   if (to < 0 || to >= state.layers.length) return
   const [layer] = state.layers.splice(from, 1)
   state.layers.splice(to, 0, layer)
@@ -999,6 +1512,7 @@ function moveLayer(from, to) {
 }
 
 function removeLayer(index) {
+  if (!state.selectedOptionKey) return
   if (state.layers.length <= 1) return
   state.layers.splice(index, 1)
   updateAll()
@@ -1047,11 +1561,20 @@ layersContainer.addEventListener('input', (event) => {
   if (input.dataset.field !== 'thickness') return
   const index = Number(input.dataset.index)
   if (!Number.isFinite(index)) return
-  state.layers[index].thickness = input.value === '' ? '' : Number(input.value)
-  updateAll()
+  state.layers[index].thickness = input.value
+  updateComputedPreview()
 })
 
 layersContainer.addEventListener('change', (event) => {
+  const input = event.target
+  if (input instanceof HTMLInputElement && input.dataset.field === 'thickness') {
+    const index = Number(input.dataset.index)
+    if (!Number.isFinite(index)) return
+    state.layers[index].thickness = input.value
+    updateAll()
+    return
+  }
+
   const select = event.target
   if (!(select instanceof HTMLSelectElement)) return
   if (select.dataset.field !== 'grade') return
@@ -1061,6 +1584,18 @@ layersContainer.addEventListener('change', (event) => {
   state.layers[index].gradeCode = value
   state.layers[index].auto = value === ''
   updateAll()
+})
+
+optionsContainer.addEventListener('click', (event) => {
+  const button = event.target.closest('button[data-action="select-option"]')
+  if (!button) return
+  const key = button.dataset.key
+  if (!key) return
+  selectBuiltOption(key)
+})
+
+buildOptionsButton.addEventListener('click', () => {
+  buildMattressOptions()
 })
 
 addLayerButton.addEventListener('click', () => {
@@ -1081,11 +1616,40 @@ toggleInputsButton.addEventListener('click', () => {
   toggleInputsButton.setAttribute('aria-expanded', String(!collapsed))
 })
 
+toggleOptionsButton.addEventListener('click', () => {
+  const collapsed = optionsPanel.classList.toggle('is-collapsed')
+  toggleOptionsButton.textContent = collapsed ? 'Show Options' : 'Hide Options'
+  toggleOptionsButton.setAttribute('aria-expanded', String(!collapsed))
+})
+
 document.querySelector('#input-form').addEventListener('submit', (event) => {
   event.preventDefault()
 })
 
-document.querySelectorAll('select, input').forEach((el) => {
+mattressSizeSelect.addEventListener('change', () => {
+  applyMattressSizePreset()
+})
+
+function handleDimensionInputChange() {
+  syncMattressPresetFromDimensions()
+  updateAll()
+}
+
+widthInput.addEventListener('change', handleDimensionInputChange)
+widthInput.addEventListener('input', handleDimensionInputChange)
+lengthInput.addEventListener('change', handleDimensionInputChange)
+lengthInput.addEventListener('input', handleDimensionInputChange)
+
+;[
+  weightSelect,
+  backSelect,
+  firmnessSelect,
+  mattressThicknessInput,
+  overrideInput,
+  toleranceInput,
+  topMinInput,
+  bottomMinInput,
+].forEach((el) => {
   el.addEventListener('change', updateAll)
   el.addEventListener('input', updateAll)
 })
@@ -1094,49 +1658,50 @@ async function init() {
   buildSelect(weightSelect, WEIGHT_GROUPS, 'Select Your Weight')
   buildSelect(backSelect, BACK_GROUPS, 'Your Back Condition')
   buildSelect(firmnessSelect, FIRMNESS_GROUPS, 'Your Preferred Firmness')
+  buildMattressSizeSelect(mattressSizeSelect)
 
-  const response = await fetch('/foam_grades_custom_shape.json')
-  const data = await response.json()
-  const grades = (data.grades || [])
-    .map((grade) => {
-      const priceValue = grade.price_retail_shapes !== '' ? Number(grade.price_retail_shapes) : null
-      const price = Number.isFinite(priceValue) ? priceValue : null
-      return {
-        ...grade,
-        price,
-        derivedEr: deriveEr(grade.code),
-      }
+  try {
+    const response = await fetch('/foam_grades_custom_shape.json')
+    if (!response.ok) throw new Error(`Failed to load foam grades (${response.status})`)
+
+    const data = await response.json()
+    const grades = (data.grades || [])
+      .map((grade) => {
+        const priceRaw = Number(grade.price_retail_shapes)
+        const price = Number.isFinite(priceRaw) ? priceRaw : null
+        return {
+          ...grade,
+          price,
+          derivedEr: deriveEr(grade.code),
+        }
+      })
+      .filter((grade) => grade.price !== null)
+
+    state.grades = grades
+    state.gradeByCode = new Map(state.grades.map((grade) => [grade.code, grade]))
+
+    const groupMap = new Map()
+    state.grades.forEach((grade) => {
+      const label = grade.groupLabel || 'Other'
+      if (!groupMap.has(label)) groupMap.set(label, [])
+      groupMap.get(label).push(grade)
     })
-    .filter((grade) => grade.price !== null)
 
-  const prices = grades.map((g) => g.price).sort((a, b) => a - b)
-  state.budget.min = prices[0] ?? null
-  state.budget.max = prices[prices.length - 1] ?? null
-  state.budget.p33 = quantile(prices, 0.3333)
-  state.budget.p66 = quantile(prices, 0.6667)
+    state.gradeGroups = Array.from(groupMap.entries()).map(([label, options]) => ({
+      label,
+      options,
+    }))
 
-  state.grades = grades.map((g) => ({
-    ...g,
-    bucket: bucketForPrice(g.price),
-  }))
+    state.nextId = 1
+    state.layers = []
 
-  state.gradeByCode = new Map(state.grades.map((g) => [g.code, g]))
-
-  const groupMap = new Map()
-  state.grades.forEach((grade) => {
-    const label = grade.groupLabel || 'Other'
-    if (!groupMap.has(label)) groupMap.set(label, [])
-    groupMap.get(label).push(grade)
-  })
-  state.gradeGroups = Array.from(groupMap.entries()).map(([label, options]) => ({
-    label,
-    options,
-  }))
-
-  state.layers = [createLayer()]
-
-  updateBudgetTable()
-  updateAll()
+    setOptionStatus('No options built yet.', 'muted')
+    setSubmitStatus('Not submitted', 'muted')
+    updateAll()
+  } catch (error) {
+    setOptionStatus('Failed to load foam grades.', 'error')
+    setSubmitStatus('Cannot submit until foam grades load.', 'error')
+  }
 }
 
 init()
