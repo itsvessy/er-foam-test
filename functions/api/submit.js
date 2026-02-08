@@ -18,10 +18,11 @@ export async function onRequestPost(context) {
   const inputs = payload.inputs || {}
   const computed = payload.computed || {}
   const layers = Array.isArray(payload.layers) ? payload.layers : []
-  const budgetThresholds = meta.budgetThresholds || {}
+  const generatedOptions = Array.isArray(payload.generatedOptions) ? payload.generatedOptions : []
 
   const payloadJson = JSON.stringify(payload)
   const layersJson = JSON.stringify(layers)
+  const generatedOptionsJson = JSON.stringify(generatedOptions)
 
   try {
     await db
@@ -33,26 +34,29 @@ export async function onRequestPost(context) {
           weight_label,
           back_condition,
           firmness,
-          budget,
           override_er,
           tolerance,
+          top_layer_min,
+          bottom_layer_min,
+          width_in,
+          height_in,
+          mattress_thickness_in,
+          selected_option_key,
+          selected_option_label,
           target_er,
           actual_er,
           delta_er,
           total_thickness,
           er_depth,
-          total_price,
+          estimated_price,
           status_text,
           calc_version,
           app_version,
-          budget_min,
-          budget_p33,
-          budget_p66,
-          budget_max,
+          generated_options_json,
           layers_json,
           payload_json,
           user_agent
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -61,22 +65,25 @@ export async function onRequestPost(context) {
         inputs.weight?.label ?? null,
         inputs.back?.value ?? null,
         inputs.firmness?.value ?? null,
-        inputs.budget ?? null,
         inputs.overrideEr ?? null,
         inputs.tolerance ?? null,
+        inputs.topLayerMin ?? null,
+        inputs.bottomLayerMin ?? null,
+        inputs.widthIn ?? null,
+        inputs.lengthIn ?? inputs.heightIn ?? null,
+        inputs.mattressThicknessIn ?? null,
+        meta.selectedOptionKey ?? null,
+        meta.selectedOptionLabel ?? null,
         computed.targetEr ?? null,
         computed.actualEr ?? null,
         computed.deltaEr ?? null,
         computed.totalThickness ?? null,
         computed.erDepth ?? null,
-        computed.totalPrice ?? null,
+        computed.estimatedPrice ?? null,
         meta.status ?? null,
         meta.calcVersion ?? null,
         meta.appVersion ?? null,
-        budgetThresholds.min ?? null,
-        budgetThresholds.p33 ?? null,
-        budgetThresholds.p66 ?? null,
-        budgetThresholds.max ?? null,
+        generatedOptionsJson,
         layersJson,
         payloadJson,
         context.request.headers.get('User-Agent')
