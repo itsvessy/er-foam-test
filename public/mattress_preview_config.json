@@ -1,0 +1,815 @@
+{
+  "versions": {
+    "snapshotVersion": "preview-v2-styles",
+    "projectionVersion": "proj-v1",
+    "colorMapVersion": "family-v1-provisional",
+    "styleVersion": "style-v1"
+  },
+  "projection": {
+    "frontWidth": 320,
+    "frontHeight": 180,
+    "depthDx": 90,
+    "depthDy": 44,
+    "strokeWidth": 2,
+    "padding": 24
+  },
+  "label": {
+    "minSliceHeightPx": 14,
+    "fontSizePx": 12
+  },
+  "colors": {
+    "families": {
+      "white": "#f3f5f7",
+      "blue": "#9ec7ea",
+      "peach_gold": "#e6c084",
+      "charcoal": "#5a5e63",
+      "grey": "#aeb4bb",
+      "green": "#98c79d",
+      "memory": "#c7d6ff",
+      "latex": "#ded4ae"
+    },
+    "neutral": "#d8dde3",
+    "topLighten": 0.14,
+    "sideDarken": 0.12
+  },
+  "colorResolution": {
+    "explicitCodeFamilyMap": {
+      "PR18": "peach_gold",
+      "PR23": "peach_gold",
+      "PR28": "peach_gold",
+      "PR35": "peach_gold",
+      "PR40": "peach_gold",
+      "PR50": "peach_gold",
+      "PR60": "peach_gold",
+      "NC30": "blue",
+      "NC36": "blue",
+      "NC45": "blue",
+      "NC55": "blue",
+      "NC65": "blue",
+      "EC26": "white",
+      "EC36": "white",
+      "EC46": "white",
+      "EC55": "white",
+      "1570C": "charcoal",
+      "X550": "grey",
+      "MF12": "memory",
+      "LX19": "latex",
+      "LX28": "latex",
+      "LX36": "latex",
+      "LX46": "latex"
+    },
+    "keywords": {
+      "label": [
+        {
+          "match": "memory",
+          "family": "memory"
+        },
+        {
+          "match": "latex",
+          "family": "latex"
+        },
+        {
+          "match": "charcoal",
+          "family": "charcoal"
+        },
+        {
+          "match": "grey",
+          "family": "grey"
+        },
+        {
+          "match": "gray",
+          "family": "grey"
+        },
+        {
+          "match": "ecocell",
+          "family": "white"
+        },
+        {
+          "match": "neocell",
+          "family": "blue"
+        }
+      ],
+      "description": [
+        {
+          "match": "peach",
+          "family": "peach_gold"
+        },
+        {
+          "match": "gold",
+          "family": "peach_gold"
+        },
+        {
+          "match": "blue",
+          "family": "blue"
+        },
+        {
+          "match": "white",
+          "family": "white"
+        },
+        {
+          "match": "green",
+          "family": "green"
+        },
+        {
+          "match": "charcoal",
+          "family": "charcoal"
+        },
+        {
+          "match": "grey",
+          "family": "grey"
+        },
+        {
+          "match": "gray",
+          "family": "grey"
+        }
+      ],
+      "group": [
+        {
+          "match": "speciality",
+          "family": "grey"
+        },
+        {
+          "match": "outdoor",
+          "family": "green"
+        },
+        {
+          "match": "basic",
+          "family": "white"
+        },
+        {
+          "match": "economy",
+          "family": "white"
+        }
+      ]
+    }
+  },
+  "styles": {
+    "defaultMode": "classic_default",
+    "modes": [
+      "classic_default",
+      "rounded_soft",
+      "textured",
+      "photo_realistic",
+      "technical_cad"
+    ],
+    "classic_default": {
+      "label": "Classic Default",
+      "stroke": "#5f6876",
+      "topLighten": 0.14,
+      "sideDarken": 0.12,
+      "strokeWidthScale": 1
+    },
+    "rounded_soft": {
+      "label": "Rounded / Soft",
+      "stroke": "#78879b",
+      "topLighten": 0.22,
+      "sideDarken": 0.09,
+      "strokeWidthScale": 0.95,
+      "shadowOpacity": 0.22,
+      "cornerRadiusPx": 12
+    },
+    "textured": {
+      "label": "Textured",
+      "stroke": "#5f6876",
+      "topLighten": 0.16,
+      "sideDarken": 0.12,
+      "strokeWidthScale": 1,
+      "patternOpacityFront": 0.25,
+      "patternOpacitySide": 0.18,
+      "patternSpacingScale": 1,
+      "patternStrokeScale": 1,
+      "patternAngleOffset": 0
+    },
+    "photo_realistic": {
+      "label": "Photo Realistic",
+      "stroke": "#4d5869",
+      "topLighten": 0.24,
+      "sideDarken": 0.2,
+      "strokeWidthScale": 0.9,
+      "grainFrequency": 0.85,
+      "grainOpacity": 0.08,
+      "shadowOpacity": 0.17,
+      "highlightStrength": 1,
+      "seamContrast": 1
+    },
+    "technical_cad": {
+      "label": "Technical / CAD",
+      "stroke": "#2f3d4c",
+      "topLighten": 0.1,
+      "sideDarken": 0.06,
+      "strokeWidthScale": 0.92,
+      "hatchOpacityFront": 0.45,
+      "hatchOpacitySide": 0.28,
+      "hatchSpacingScale": 1,
+      "hatchAngleOffset": 0
+    },
+    "textureMaps": {
+      "texturedByCode": {
+        "1030": {
+          "motif": "dots",
+          "spacing": 8,
+          "angle": 30,
+          "strokeWidth": 0.9,
+          "opacity": 0.32
+        },
+        "1112": {
+          "motif": "dash",
+          "spacing": 7,
+          "angle": 120,
+          "strokeWidth": 0.75,
+          "opacity": 0.17
+        },
+        "1118": {
+          "motif": "dash",
+          "spacing": 12,
+          "angle": 90,
+          "strokeWidth": 0.75,
+          "opacity": 0.22
+        },
+        "1324": {
+          "motif": "wave",
+          "spacing": 10,
+          "angle": 90,
+          "strokeWidth": 1.05,
+          "opacity": 0.27
+        },
+        "1338": {
+          "motif": "grid",
+          "spacing": 12,
+          "angle": 105,
+          "strokeWidth": 0.6,
+          "opacity": 0.22
+        },
+        "1517": {
+          "motif": "dots",
+          "spacing": 6,
+          "angle": 30,
+          "strokeWidth": 0.9,
+          "opacity": 0.17
+        },
+        "1530": {
+          "motif": "cross",
+          "spacing": 10,
+          "angle": 30,
+          "strokeWidth": 1.05,
+          "opacity": 0.32
+        },
+        "1535": {
+          "motif": "wave",
+          "spacing": 11,
+          "angle": 135,
+          "strokeWidth": 0.75,
+          "opacity": 0.22
+        },
+        "1543": {
+          "motif": "grid",
+          "spacing": 10,
+          "angle": 30,
+          "strokeWidth": 0.75,
+          "opacity": 0.22
+        },
+        "1570": {
+          "motif": "grid",
+          "spacing": 12,
+          "angle": 150,
+          "strokeWidth": 0.6,
+          "opacity": 0.32
+        },
+        "1828": {
+          "motif": "cross",
+          "spacing": 12,
+          "angle": 105,
+          "strokeWidth": 0.9,
+          "opacity": 0.32
+        },
+        "1835": {
+          "motif": "cross",
+          "spacing": 7,
+          "angle": 120,
+          "strokeWidth": 0.6,
+          "opacity": 0.22
+        },
+        "1845": {
+          "motif": "dots",
+          "spacing": 10,
+          "angle": 75,
+          "strokeWidth": 1.05,
+          "opacity": 0.32
+        },
+        "1570C": {
+          "motif": "diag",
+          "spacing": 6,
+          "angle": 105,
+          "strokeWidth": 0.75,
+          "opacity": 0.22
+        },
+        "EC26": {
+          "motif": "dots",
+          "spacing": 9,
+          "angle": 105,
+          "strokeWidth": 0.6,
+          "opacity": 0.27
+        },
+        "EC36": {
+          "motif": "dash",
+          "spacing": 9,
+          "angle": 105,
+          "strokeWidth": 0.9,
+          "opacity": 0.22
+        },
+        "EC46": {
+          "motif": "dots",
+          "spacing": 6,
+          "angle": 60,
+          "strokeWidth": 0.9,
+          "opacity": 0.27
+        },
+        "EC55": {
+          "motif": "wave",
+          "spacing": 7,
+          "angle": 90,
+          "strokeWidth": 1.05,
+          "opacity": 0.22
+        },
+        "KN11": {
+          "motif": "grid",
+          "spacing": 7,
+          "angle": 30,
+          "strokeWidth": 0.75,
+          "opacity": 0.22
+        },
+        "KN31": {
+          "motif": "dash",
+          "spacing": 9,
+          "angle": 60,
+          "strokeWidth": 0.75,
+          "opacity": 0.22
+        },
+        "KN51": {
+          "motif": "cross",
+          "spacing": 10,
+          "angle": 45,
+          "strokeWidth": 1.05,
+          "opacity": 0.32
+        },
+        "LX19": {
+          "motif": "diag",
+          "spacing": 11,
+          "angle": 135,
+          "strokeWidth": 1.05,
+          "opacity": 0.32
+        },
+        "LX28": {
+          "motif": "wave",
+          "spacing": 9,
+          "angle": 30,
+          "strokeWidth": 0.6,
+          "opacity": 0.27
+        },
+        "LX36": {
+          "motif": "dash",
+          "spacing": 9,
+          "angle": 30,
+          "strokeWidth": 0.9,
+          "opacity": 0.22
+        },
+        "LX46": {
+          "motif": "dots",
+          "spacing": 11,
+          "angle": 120,
+          "strokeWidth": 0.75,
+          "opacity": 0.17
+        },
+        "MF12": {
+          "motif": "dots",
+          "spacing": 12,
+          "angle": 0,
+          "strokeWidth": 0.6,
+          "opacity": 0.27
+        },
+        "NC30": {
+          "motif": "wave",
+          "spacing": 12,
+          "angle": 105,
+          "strokeWidth": 0.75,
+          "opacity": 0.17
+        },
+        "NC36": {
+          "motif": "wave",
+          "spacing": 10,
+          "angle": 75,
+          "strokeWidth": 0.9,
+          "opacity": 0.22
+        },
+        "NC45": {
+          "motif": "dots",
+          "spacing": 12,
+          "angle": 150,
+          "strokeWidth": 0.6,
+          "opacity": 0.32
+        },
+        "NC55": {
+          "motif": "cross",
+          "spacing": 9,
+          "angle": 30,
+          "strokeWidth": 0.75,
+          "opacity": 0.22
+        },
+        "NC65": {
+          "motif": "wave",
+          "spacing": 6,
+          "angle": 75,
+          "strokeWidth": 0.75,
+          "opacity": 0.27
+        },
+        "PR18": {
+          "motif": "grid",
+          "spacing": 7,
+          "angle": 105,
+          "strokeWidth": 0.6,
+          "opacity": 0.32
+        },
+        "PR23": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 0,
+          "strokeWidth": 0.75,
+          "opacity": 0.22
+        },
+        "PR28": {
+          "motif": "dots",
+          "spacing": 6,
+          "angle": 0,
+          "strokeWidth": 0.75,
+          "opacity": 0.32
+        },
+        "PR35": {
+          "motif": "wave",
+          "spacing": 11,
+          "angle": 45,
+          "strokeWidth": 0.6,
+          "opacity": 0.17
+        },
+        "PR40": {
+          "motif": "diag",
+          "spacing": 9,
+          "angle": 15,
+          "strokeWidth": 1.05,
+          "opacity": 0.27
+        },
+        "PR50": {
+          "motif": "dash",
+          "spacing": 8,
+          "angle": 90,
+          "strokeWidth": 1.05,
+          "opacity": 0.27
+        },
+        "PR60": {
+          "motif": "wave",
+          "spacing": 7,
+          "angle": 165,
+          "strokeWidth": 1.05,
+          "opacity": 0.27
+        },
+        "QD30": {
+          "motif": "wave",
+          "spacing": 9,
+          "angle": 165,
+          "strokeWidth": 0.75,
+          "opacity": 0.27
+        },
+        "QD50": {
+          "motif": "wave",
+          "spacing": 6,
+          "angle": 75,
+          "strokeWidth": 0.6,
+          "opacity": 0.17
+        },
+        "REB8": {
+          "motif": "grid",
+          "spacing": 8,
+          "angle": 60,
+          "strokeWidth": 0.75,
+          "opacity": 0.17
+        },
+        "VG10": {
+          "motif": "dots",
+          "spacing": 7,
+          "angle": 75,
+          "strokeWidth": 1.05,
+          "opacity": 0.32
+        },
+        "X550": {
+          "motif": "dots",
+          "spacing": 7,
+          "angle": 60,
+          "strokeWidth": 0.9,
+          "opacity": 0.22
+        }
+      },
+      "technicalCadByCode": {
+        "1030": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 45,
+          "strokeWidth": 0.7,
+          "opacity": 0.24
+        },
+        "1112": {
+          "motif": "grid",
+          "spacing": 7,
+          "angle": 75,
+          "strokeWidth": 0.9,
+          "opacity": 0.31
+        },
+        "1118": {
+          "motif": "diag",
+          "spacing": 5,
+          "angle": 60,
+          "strokeWidth": 1.1,
+          "opacity": 0.24
+        },
+        "1324": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 60,
+          "strokeWidth": 1.1,
+          "opacity": 0.31
+        },
+        "1338": {
+          "motif": "diag",
+          "spacing": 5,
+          "angle": 75,
+          "strokeWidth": 1.1,
+          "opacity": 0.38
+        },
+        "1517": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 30,
+          "strokeWidth": 1.1,
+          "opacity": 0.38
+        },
+        "1530": {
+          "motif": "grid",
+          "spacing": 7,
+          "angle": 30,
+          "strokeWidth": 1.1,
+          "opacity": 0.31
+        },
+        "1535": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 0,
+          "strokeWidth": 0.7,
+          "opacity": 0.24
+        },
+        "1543": {
+          "motif": "diag",
+          "spacing": 5,
+          "angle": 30,
+          "strokeWidth": 1.1,
+          "opacity": 0.31
+        },
+        "1570": {
+          "motif": "grid",
+          "spacing": 7,
+          "angle": 30,
+          "strokeWidth": 1.1,
+          "opacity": 0.38
+        },
+        "1828": {
+          "motif": "diag",
+          "spacing": 5,
+          "angle": 30,
+          "strokeWidth": 1.1,
+          "opacity": 0.24
+        },
+        "1835": {
+          "motif": "grid",
+          "spacing": 7,
+          "angle": 60,
+          "strokeWidth": 1.1,
+          "opacity": 0.24
+        },
+        "1845": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 60,
+          "strokeWidth": 0.9,
+          "opacity": 0.38
+        },
+        "1570C": {
+          "motif": "dash",
+          "spacing": 8,
+          "angle": 30,
+          "strokeWidth": 0.7,
+          "opacity": 0.24
+        },
+        "EC26": {
+          "motif": "dash",
+          "spacing": 8,
+          "angle": 30,
+          "strokeWidth": 0.7,
+          "opacity": 0.38
+        },
+        "EC36": {
+          "motif": "grid",
+          "spacing": 7,
+          "angle": 30,
+          "strokeWidth": 0.7,
+          "opacity": 0.24
+        },
+        "EC46": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 0,
+          "strokeWidth": 0.7,
+          "opacity": 0.24
+        },
+        "EC55": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 0,
+          "strokeWidth": 0.9,
+          "opacity": 0.24
+        },
+        "KN11": {
+          "motif": "diag",
+          "spacing": 5,
+          "angle": 30,
+          "strokeWidth": 1.1,
+          "opacity": 0.24
+        },
+        "KN31": {
+          "motif": "grid",
+          "spacing": 7,
+          "angle": 30,
+          "strokeWidth": 0.7,
+          "opacity": 0.38
+        },
+        "KN51": {
+          "motif": "diag",
+          "spacing": 5,
+          "angle": 60,
+          "strokeWidth": 0.9,
+          "opacity": 0.24
+        },
+        "LX19": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 30,
+          "strokeWidth": 0.7,
+          "opacity": 0.24
+        },
+        "LX28": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 45,
+          "strokeWidth": 0.7,
+          "opacity": 0.24
+        },
+        "LX36": {
+          "motif": "grid",
+          "spacing": 7,
+          "angle": 75,
+          "strokeWidth": 1.1,
+          "opacity": 0.38
+        },
+        "LX46": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 0,
+          "strokeWidth": 0.7,
+          "opacity": 0.31
+        },
+        "MF12": {
+          "motif": "dash",
+          "spacing": 8,
+          "angle": 75,
+          "strokeWidth": 0.9,
+          "opacity": 0.24
+        },
+        "NC30": {
+          "motif": "dash",
+          "spacing": 8,
+          "angle": 0,
+          "strokeWidth": 0.9,
+          "opacity": 0.38
+        },
+        "NC36": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 30,
+          "strokeWidth": 1.1,
+          "opacity": 0.24
+        },
+        "NC45": {
+          "motif": "dash",
+          "spacing": 8,
+          "angle": 60,
+          "strokeWidth": 0.9,
+          "opacity": 0.24
+        },
+        "NC55": {
+          "motif": "grid",
+          "spacing": 7,
+          "angle": 0,
+          "strokeWidth": 0.7,
+          "opacity": 0.24
+        },
+        "NC65": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 15,
+          "strokeWidth": 0.7,
+          "opacity": 0.31
+        },
+        "PR18": {
+          "motif": "diag",
+          "spacing": 5,
+          "angle": 45,
+          "strokeWidth": 1.1,
+          "opacity": 0.31
+        },
+        "PR23": {
+          "motif": "grid",
+          "spacing": 7,
+          "angle": 30,
+          "strokeWidth": 0.7,
+          "opacity": 0.24
+        },
+        "PR28": {
+          "motif": "dash",
+          "spacing": 8,
+          "angle": 30,
+          "strokeWidth": 0.7,
+          "opacity": 0.24
+        },
+        "PR35": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 30,
+          "strokeWidth": 0.7,
+          "opacity": 0.31
+        },
+        "PR40": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 45,
+          "strokeWidth": 1.1,
+          "opacity": 0.31
+        },
+        "PR50": {
+          "motif": "diag",
+          "spacing": 5,
+          "angle": 60,
+          "strokeWidth": 0.9,
+          "opacity": 0.24
+        },
+        "PR60": {
+          "motif": "dash",
+          "spacing": 8,
+          "angle": 45,
+          "strokeWidth": 0.7,
+          "opacity": 0.38
+        },
+        "QD30": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 15,
+          "strokeWidth": 0.9,
+          "opacity": 0.31
+        },
+        "QD50": {
+          "motif": "dash",
+          "spacing": 8,
+          "angle": 15,
+          "strokeWidth": 0.7,
+          "opacity": 0.24
+        },
+        "REB8": {
+          "motif": "diag",
+          "spacing": 5,
+          "angle": 60,
+          "strokeWidth": 0.9,
+          "opacity": 0.31
+        },
+        "VG10": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 0,
+          "strokeWidth": 0.9,
+          "opacity": 0.31
+        },
+        "X550": {
+          "motif": "cross",
+          "spacing": 6,
+          "angle": 0,
+          "strokeWidth": 0.9,
+          "opacity": 0.38
+        }
+      }
+    }
+  }
+}

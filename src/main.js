@@ -1,4 +1,12 @@
 import './style.css'
+import { buildGradeMetadataByCode } from './preview/colorResolver.js'
+import { generateMattressPreviewSvg } from './preview/index.js'
+import { normalizeStyleMode } from './preview/styleTextureResolver.js'
+import {
+  PREVIEW_STYLE_OPTIONS,
+  clampStyleControlValue,
+  getStyleControlDefs,
+} from './preview/styleControls.js'
 
 const WEIGHT_GROUPS = [
   {
@@ -156,6 +164,46 @@ const MATTRESS_SIZE_GROUPS = [
 const SOFT_MED_KEYS = new Set(['super-soft', 'soft', 'medium-soft', 'medium'])
 const CALC_VERSION = 'er-v2-options'
 const APP_VERSION = (import.meta?.env && import.meta.env.VITE_APP_VERSION) || 'local'
+const FALLBACK_PREVIEW_CONFIG = {
+  projection: {
+    frontWidth: 320,
+    frontHeight: 180,
+    depthDx: 90,
+    depthDy: 44,
+    strokeWidth: 2,
+    padding: 24,
+  },
+  label: {
+    minSliceHeightPx: 14,
+    fontSizePx: 12,
+  },
+  colors: {
+    families: {
+      white: '#f3f5f7',
+      blue: '#9ec7ea',
+      peach_gold: '#e6c084',
+      charcoal: '#5a5e63',
+      grey: '#aeb4bb',
+      green: '#98c79d',
+      memory: '#c7d6ff',
+      latex: '#ded4ae',
+    },
+    neutral: '#d8dde3',
+    topLighten: 0.14,
+    sideDarken: 0.12,
+  },
+  colorResolution: {
+    explicitCodeFamilyMap: {},
+    keywords: {
+      label: [],
+      description: [],
+      group: [],
+    },
+  },
+  styles: {
+    defaultMode: 'classic_default',
+  },
+}
 
 const app = document.querySelector('#app')
 app.innerHTML = `
@@ -321,9 +369,26 @@ app.innerHTML = `
       </div>
 
       <div class="panel layers-panel">
-        <div class="layers-header">
-          <h2>Layers</h2>
-          <button type="button" class="ghost" id="add-layer">Add Layer</button>
+        <div class="layers-top">
+          <div class="layers-header">
+            <h2>Layers</h2>
+            <button type="button" class="ghost" id="add-layer">Add Layer</button>
+          </div>
+          <aside class="layers-preview-card">
+            <div class="layers-preview-head">
+              <h3>Foam Preview</h3>
+              <span class="preview-style-label" id="main-preview-style-label">Classic</span>
+            </div>
+            <div class="preview-style-tabs" id="main-preview-style-tabs"></div>
+            <div class="preview-style-controls" id="main-preview-style-controls"></div>
+            <div class="preview-style-actions">
+              <button type="button" class="ghost compact" id="main-preview-reset-style">Reset active style</button>
+            </div>
+            <div class="layers-preview-stage">
+              <div class="layers-preview-canvas" id="main-preview-canvas"></div>
+            </div>
+            <div class="layers-preview-meta" id="main-preview-meta">Select a built option to preview.</div>
+          </aside>
         </div>
         <div id="layers-container"></div>
         <div class="submit-panel">
@@ -373,11 +438,21 @@ const addLayerButton = document.querySelector('#add-layer')
 const resetButton = document.querySelector('#reset-build')
 const submitButton = document.querySelector('#submit-build')
 const submitStatus = document.querySelector('#submit-status')
+const mainPreviewCanvas = document.querySelector('#main-preview-canvas')
+const mainPreviewStyleTabs = document.querySelector('#main-preview-style-tabs')
+const mainPreviewStyleControls = document.querySelector('#main-preview-style-controls')
+const mainPreviewStyleLabel = document.querySelector('#main-preview-style-label')
+const mainPreviewMeta = document.querySelector('#main-preview-meta')
+const mainPreviewResetStyleButton = document.querySelector('#main-preview-reset-style')
 
 const state = {
   grades: [],
   gradeGroups: [],
   gradeByCode: new Map(),
+  previewGradeMetadataByCode: {},
+  previewConfig: FALLBACK_PREVIEW_CONFIG,
+  previewStyle: 'classic_default',
+  previewStyleOverridesByMode: {},
   layers: [],
   nextId: 1,
   generatedOptions: [],
@@ -462,6 +537,228 @@ function roundToQuarter(value) {
 function formatMoney(value) {
   if (value === null || value === undefined || Number.isNaN(value)) return '—'
   return `$${Number(value).toFixed(2)}`
+}
+
+async function loadPreviewConfig() {
+  try {
+    const response = await fetch('/mattress_preview_config.json')
+    if (!response.ok) throw new Error(`Failed to load preview config (${response.status})`)
+    const config = await response.json()
+    if (!config || typeof config !== 'object') return FALLBACK_PREVIEW_CONFIG
+    return {
+      ...FALLBACK_PREVIEW_CONFIG,
+      ...config,
+      projection: { ...FALLBACK_PREVIEW_CONFIG.projection, ...(config.projection || {}) },
+      label: { ...FALLBACK_PREVIEW_CONFIG.label, ...(config.label || {}) },
+      colors: {
+        ...FALLBACK_PREVIEW_CONFIG.colors,
+        ...(config.colors || {}),
+        families: {
+          ...FALLBACK_PREVIEW_CONFIG.colors.families,
+          ...(config?.colors?.families || {}),
+        },
+      },
+      colorResolution: {
+        ...FALLBACK_PREVIEW_CONFIG.colorResolution,
+        ...(config.colorResolution || {}),
+        explicitCodeFamilyMap: {
+          ...FALLBACK_PREVIEW_CONFIG.colorResolution.explicitCodeFamilyMap,
+          ...(config?.colorResolution?.explicitCodeFamilyMap || {}),
+        },
+        keywords: {
+          ...FALLBACK_PREVIEW_CONFIG.colorResolution.keywords,
+          ...(config?.colorResolution?.keywords || {}),
+        },
+      },
+      styles: {
+        ...FALLBACK_PREVIEW_CONFIG.styles,
+        ...(config.styles || {}),
+      },
+    }
+  } catch {
+    return FALLBACK_PREVIEW_CONFIG
+  }
+}
+
+function getPreviewStyleLabel(mode) {
+  const found = PREVIEW_STYLE_OPTIONS.find((option) => option.mode === mode)
+  return found ? found.label : 'Classic'
+}
+
+function renderMainPreviewStyleTabs() {
+  if (!mainPreviewStyleTabs) return
+  mainPreviewStyleTabs.innerHTML = PREVIEW_STYLE_OPTIONS
+    .map((option) => {
+      const active = option.mode === state.previewStyle
+      return `<button type="button" class="preview-style-tab ${active ? 'active' : ''}" data-preview-style="${escapeHtml(option.mode)}">${escapeHtml(option.label)}</button>`
+    })
+    .join('')
+}
+
+function getMainStyleTokenValue(mode, key, fallback = 0) {
+  const override = state.previewStyleOverridesByMode?.[mode]?.[key]
+  if (Number.isFinite(Number(override))) return Number(override)
+  const configured = state.previewConfig?.styles?.[mode]?.[key]
+  if (Number.isFinite(Number(configured))) return Number(configured)
+  return fallback
+}
+
+function formatStyleControlValue(value) {
+  const rounded = Math.round(Number(value) * 100) / 100
+  if (!Number.isFinite(rounded)) return '0'
+  return Number.isInteger(rounded)
+    ? String(rounded)
+    : String(rounded.toFixed(2)).replace(/0+$/, '').replace(/\.$/, '')
+}
+
+function syncMainStyleControlDomValue(tokenKey, value) {
+  if (!mainPreviewStyleControls) return
+  const valueRaw = String(value)
+  const valueText = formatStyleControlValue(value)
+  const inputs = mainPreviewStyleControls.querySelectorAll('input[data-preview-style-token]')
+  for (let i = 0; i < inputs.length; i += 1) {
+    const input = inputs[i]
+    if (input.dataset.previewStyleToken !== tokenKey) continue
+    if (input.value !== valueRaw) input.value = valueRaw
+  }
+
+  const valueSpans = mainPreviewStyleControls.querySelectorAll('[data-preview-style-token-value]')
+  for (let i = 0; i < valueSpans.length; i += 1) {
+    const valueSpan = valueSpans[i]
+    if (valueSpan.dataset.previewStyleTokenValue !== tokenKey) continue
+    valueSpan.textContent = valueText
+  }
+}
+
+function renderMainPreviewStyleControls() {
+  if (!mainPreviewStyleControls) return
+  const mode = state.previewStyle
+  const defs = getStyleControlDefs(mode)
+
+  if (!defs.length) {
+    mainPreviewStyleControls.innerHTML = '<div class="preview-style-controls-empty">Classic style is fixed baseline (no tunable controls).</div>'
+    if (mainPreviewResetStyleButton) mainPreviewResetStyleButton.disabled = true
+    return
+  }
+
+  mainPreviewStyleControls.innerHTML = defs
+    .map((def) => {
+      const value = getMainStyleTokenValue(mode, def.key, def.min)
+      return `
+        <div class="preview-style-control">
+          <div class="preview-style-control-head">
+            <span>${escapeHtml(def.label)}</span>
+            <span data-preview-style-token-value="${escapeHtml(def.key)}">${escapeHtml(formatStyleControlValue(value))}</span>
+          </div>
+          <div class="preview-style-control-inputs">
+            <input type="range" min="${escapeHtml(def.min)}" max="${escapeHtml(def.max)}" step="${escapeHtml(def.step)}" value="${escapeHtml(value)}" data-preview-style-token="${escapeHtml(def.key)}" />
+            <input type="number" min="${escapeHtml(def.min)}" max="${escapeHtml(def.max)}" step="${escapeHtml(def.step)}" value="${escapeHtml(value)}" data-preview-style-token="${escapeHtml(def.key)}" />
+          </div>
+        </div>
+      `
+    })
+    .join('')
+
+  if (mainPreviewResetStyleButton) mainPreviewResetStyleButton.disabled = false
+}
+
+function buildMainPreviewInput() {
+  const config = state.previewConfig || FALLBACK_PREVIEW_CONFIG
+  const layers = state.layers.map((layer) => ({
+    thicknessIn: clampThickness(layer.thickness),
+    gradeCode: layer.gradeCode || null,
+  }))
+
+  const stylesConfig = {
+    ...(config.styles || {}),
+  }
+  const overrideModes = Object.keys(state.previewStyleOverridesByMode || {})
+  for (let i = 0; i < overrideModes.length; i += 1) {
+    const mode = overrideModes[i]
+    stylesConfig[mode] = {
+      ...(stylesConfig[mode] || {}),
+      ...(state.previewStyleOverridesByMode[mode] || {}),
+    }
+  }
+
+  return {
+    layers,
+    projection: config.projection || FALLBACK_PREVIEW_CONFIG.projection,
+    colors: config.colors || FALLBACK_PREVIEW_CONFIG.colors,
+    label: config.label || FALLBACK_PREVIEW_CONFIG.label,
+    colorResolution: config.colorResolution || FALLBACK_PREVIEW_CONFIG.colorResolution,
+    gradeMetadataByCode: state.previewGradeMetadataByCode || {},
+    style: {
+      mode: state.previewStyle,
+    },
+    stylesConfig,
+  }
+}
+
+function renderMainPreview({ refreshStyleUi = true } = {}) {
+  if (!mainPreviewCanvas || !mainPreviewMeta || !mainPreviewStyleLabel) return
+
+  if (refreshStyleUi) {
+    renderMainPreviewStyleTabs()
+    renderMainPreviewStyleControls()
+  }
+  mainPreviewStyleLabel.textContent = getPreviewStyleLabel(state.previewStyle)
+
+  if (!state.selectedOptionKey || !state.layers.length) {
+    mainPreviewCanvas.innerHTML = '<div class="layers-preview-empty">Select a built option to preview.</div>'
+    mainPreviewMeta.textContent = 'No active build selected.'
+    return
+  }
+
+  const output = generateMattressPreviewSvg(buildMainPreviewInput())
+  mainPreviewCanvas.innerHTML = output.svg
+
+  const fallbackCount = output.diagnostics.sliceAudit.filter((slice) => slice.fallbackUsed).length
+  const styleLabel = getPreviewStyleLabel(output.diagnostics.styleMode || state.previewStyle)
+  mainPreviewMeta.textContent = `${styleLabel} • ${output.slices.length} layers • ${fallbackCount} fallback${fallbackCount === 1 ? '' : 's'}`
+}
+
+function setMainStyleControlValue(tokenKey, rawValue) {
+  const mode = state.previewStyle
+  const def = getStyleControlDefs(mode).find((item) => item.key === tokenKey)
+  if (!def) return
+
+  const value = clampStyleControlValue(def, rawValue)
+  if (value === null) return
+
+  const baseValue = Number(state.previewConfig?.styles?.[mode]?.[def.key])
+  const nextOverrides = {
+    ...(state.previewStyleOverridesByMode || {}),
+  }
+  const nextModeOverrides = {
+    ...(nextOverrides[mode] || {}),
+  }
+
+  if (Number.isFinite(baseValue) && Math.abs(baseValue - value) < 0.00001) {
+    delete nextModeOverrides[def.key]
+  } else {
+    nextModeOverrides[def.key] = value
+  }
+
+  if (Object.keys(nextModeOverrides).length) {
+    nextOverrides[mode] = nextModeOverrides
+  } else {
+    delete nextOverrides[mode]
+  }
+
+  state.previewStyleOverridesByMode = nextOverrides
+  syncMainStyleControlDomValue(tokenKey, value)
+  renderMainPreview({ refreshStyleUi: false })
+}
+
+function resetMainActiveStyleControls() {
+  const mode = state.previewStyle
+  const nextOverrides = {
+    ...(state.previewStyleOverridesByMode || {}),
+  }
+  delete nextOverrides[mode]
+  state.previewStyleOverridesByMode = nextOverrides
+  renderMainPreview()
 }
 
 function createLayer({ thickness = 4, gradeCode = '', auto = true } = {}) {
@@ -979,6 +1276,7 @@ function updateComputedPreview() {
 
   updateSummary({ target, preferredSide, actualEr, totalThickness, erDepth, estimatedPrice })
   updateStatus({ target, preferredSide, actualEr, contributions, estimatedPrice })
+  renderMainPreview()
 }
 
 function getLayerFocusInfo() {
@@ -1483,6 +1781,7 @@ function updateAll() {
   updateSummary({ target, preferredSide, actualEr, totalThickness, erDepth, estimatedPrice })
   updateStatus({ target, preferredSide, actualEr, contributions, estimatedPrice })
   renderLayers(contributions, erDepth, suggestions)
+  renderMainPreview()
   renderOptions()
   updateActionAvailability()
   restoreLayerFocus(focusInfo)
@@ -1586,6 +1885,29 @@ layersContainer.addEventListener('change', (event) => {
   updateAll()
 })
 
+mainPreviewStyleTabs.addEventListener('click', (event) => {
+  const button = event.target.closest('button[data-preview-style]')
+  if (!button) return
+  const mode = normalizeStyleMode(button.dataset.previewStyle, state.previewStyle)
+  if (mode === state.previewStyle) return
+  state.previewStyle = mode
+  renderMainPreview()
+})
+
+mainPreviewStyleControls.addEventListener('input', (event) => {
+  const input = event.target.closest('input[data-preview-style-token]')
+  if (!input) return
+  setMainStyleControlValue(input.dataset.previewStyleToken, input.value)
+})
+
+mainPreviewStyleControls.addEventListener('change', (event) => {
+  const input = event.target.closest('input[data-preview-style-token]')
+  if (!input) return
+  setMainStyleControlValue(input.dataset.previewStyleToken, input.value)
+})
+
+mainPreviewResetStyleButton.addEventListener('click', resetMainActiveStyleControls)
+
 optionsContainer.addEventListener('click', (event) => {
   const button = event.target.closest('button[data-action="select-option"]')
   if (!button) return
@@ -1659,6 +1981,9 @@ async function init() {
   buildSelect(backSelect, BACK_GROUPS, 'Your Back Condition')
   buildSelect(firmnessSelect, FIRMNESS_GROUPS, 'Your Preferred Firmness')
   buildMattressSizeSelect(mattressSizeSelect)
+  state.previewConfig = await loadPreviewConfig()
+  state.previewStyle = normalizeStyleMode(state.previewConfig?.styles?.defaultMode || 'classic_default', 'classic_default')
+  renderMainPreviewStyleTabs()
 
   try {
     const response = await fetch('/foam_grades_custom_shape.json')
@@ -1679,6 +2004,7 @@ async function init() {
 
     state.grades = grades
     state.gradeByCode = new Map(state.grades.map((grade) => [grade.code, grade]))
+    state.previewGradeMetadataByCode = buildGradeMetadataByCode(state.grades)
 
     const groupMap = new Map()
     state.grades.forEach((grade) => {
@@ -1701,6 +2027,7 @@ async function init() {
   } catch (error) {
     setOptionStatus('Failed to load foam grades.', 'error')
     setSubmitStatus('Cannot submit until foam grades load.', 'error')
+    renderMainPreview()
   }
 }
 
