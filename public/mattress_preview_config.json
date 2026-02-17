@@ -1,0 +1,100 @@
+{
+  "versions": {
+    "snapshotVersion": "preview-v1",
+    "projectionVersion": "proj-v1",
+    "colorMapVersion": "family-v1-provisional"
+  },
+  "projection": {
+    "frontWidth": 320,
+    "frontHeight": 180,
+    "depthDx": 90,
+    "depthDy": 44,
+    "strokeWidth": 2,
+    "padding": 24
+  },
+  "label": {
+    "minSliceHeightPx": 14,
+    "fontSizePx": 12
+  },
+  "colors": {
+    "families": {
+      "white": "#f3f5f7",
+      "blue": "#9ec7ea",
+      "peach_gold": "#e6c084",
+      "charcoal": "#5a5e63",
+      "grey": "#aeb4bb",
+      "green": "#98c79d",
+      "memory": "#c7d6ff",
+      "latex": "#ded4ae"
+    },
+    "neutral": "#d8dde3",
+    "topLighten": 0.14,
+    "sideDarken": 0.12
+  },
+  "colorResolution": {
+    "explicitCodeFamilyMap": {
+      "PR18": "peach_gold",
+      "PR23": "peach_gold",
+      "PR28": "peach_gold",
+      "PR35": "peach_gold",
+      "PR40": "peach_gold",
+      "PR50": "peach_gold",
+      "PR60": "peach_gold",
+      "NC30": "blue",
+      "NC36": "blue",
+      "NC45": "blue",
+      "NC55": "blue",
+      "NC65": "blue",
+      "EC26": "white",
+      "EC36": "white",
+      "EC46": "white",
+      "EC55": "white",
+      "1570C": "charcoal",
+      "X550": "grey",
+      "MF12": "memory",
+      "LX19": "latex",
+      "LX28": "latex",
+      "LX36": "latex",
+      "LX46": "latex"
+    },
+    "keywords": {
+      "label": [
+        { "match": "memory", "family": "memory" },
+        { "match": "latex", "family": "latex" },
+        { "match": "charcoal", "family": "charcoal" },
+        { "match": "grey", "family": "grey" },
+        { "match": "gray", "family": "grey" },
+        { "match": "ecocell", "family": "white" },
+        { "match": "neocell", "family": "blue" }
+      ],
+      "description": [
+        { "match": "peach", "family": "peach_gold" },
+        { "match": "gold", "family": "peach_gold" },
+        { "match": "blue", "family": "blue" },
+        { "match": "white", "family": "white" },
+        { "match": "green", "family": "green" },
+        { "match": "charcoal", "family": "charcoal" },
+        { "match": "grey", "family": "grey" },
+        { "match": "gray", "family": "grey" }
+      ],
+      "group": [
+        { "match": "speciality", "family": "grey" },
+        { "match": "outdoor", "family": "green" },
+        { "match": "basic", "family": "white" },
+        { "match": "economy", "family": "white" }
+      ]
+    }
+  },
+  "acceptance": {
+    "maxDeviationPx": 2,
+    "referencePath": "/references/mattress-outline-reference.png",
+    "referencePoints": [
+      { "name": "frontTopLeft", "x": 24, "y": 68 },
+      { "name": "frontTopRight", "x": 344, "y": 68 },
+      { "name": "frontBottomRight", "x": 344, "y": 248 },
+      { "name": "frontBottomLeft", "x": 24, "y": 248 },
+      { "name": "backTopLeft", "x": 114, "y": 24 },
+      { "name": "backTopRight", "x": 434, "y": 24 }
+    ]
+  }
+}

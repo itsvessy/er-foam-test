@@ -1,0 +1,1044 @@
+import './preview-prototype.css'
+
+import { buildGradeMetadataByCode } from './preview/colorResolver.js'
+import { generateMattressPreviewSvg } from './preview/index.js'
+
+const LOCAL_STORAGE_KEY = 'foamite.preview.prototype.state.v1'
+const HASH_LENGTH_LIMIT = 1500
+const SVG_WARN_BYTES = 100 * 1024
+
+const FALLBACK_GRADES = [
+  {
+    code: '1517',
+    label_feature: '1.5 lb Soft',
+    groupLabel: 'Basic - 1.5 lb Seats & Toppers 110" Long',
+    grade_description: 'Fallback sample grade for offline prototype. White foam.',
+  },
+  {
+    code: 'MF12',
+    label_feature: 'Memory Foam Soft',
+    groupLabel: 'Speciality Grades',
+    grade_description: 'Fallback sample grade for offline prototype. Memory foam.',
+  },
+  {
+    code: 'EC55',
+    label_feature: 'Ecocell Extra Firm',
+    groupLabel: 'Better - Ecocell 102" Long',
+    grade_description: 'Fallback sample grade for offline prototype. White foam.',
+  },
+  {
+    code: 'PR35',
+    label_feature: 'Preserve HR Med Firm',
+    groupLabel: 'Premium - Preserve HR 88" Long',
+    grade_description: 'Fallback sample grade for offline prototype. Peachy gold foam.',
+  },
+  {
+    code: 'LX28',
+    label_feature: 'Organic Latex Medium',
+    groupLabel: 'Speciality Grades',
+    grade_description: 'Fallback sample grade for offline prototype. Latex foam.',
+  },
+]
+
+const PRESETS = {
+  'single-layer': {
+    label: 'Single layer (10" 1517)',
+    layers: [
+      { thicknessIn: 10, gradeCode: '1517' },
+    ],
+  },
+  'two-layer': {
+    label: 'Two layer (3" MF12 + 7" EC55)',
+    layers: [
+      { thicknessIn: 3, gradeCode: 'MF12' },
+      { thicknessIn: 7, gradeCode: 'EC55' },
+    ],
+  },
+  'multi-thin': {
+    label: 'Multi-layer thin slices',
+    layers: [
+      { thicknessIn: 0.25, gradeCode: 'MF12' },
+      { thicknessIn: 0.5, gradeCode: 'LX28' },
+      { thicknessIn: 1.25, gradeCode: 'PR35' },
+      { thicknessIn: 8, gradeCode: 'EC55' },
+    ],
+  },
+  unassigned: {
+    label: 'Unassigned non-zero layer',
+    layers: [
+      { thicknessIn: 3, gradeCode: null },
+      { thicknessIn: 7, gradeCode: 'EC55' },
+    ],
+  },
+  reordered: {
+    label: 'Reordered stack',
+    layers: [
+      { thicknessIn: 6, gradeCode: 'EC55' },
+      { thicknessIn: 2, gradeCode: 'MF12' },
+      { thicknessIn: 2, gradeCode: 'PR35' },
+    ],
+  },
+}
+
+const runtime = {
+  config: null,
+  grades: [],
+  gradeMetadataByCode: {},
+  state: null,
+  currentSvg: '',
+  latestOutput: null,
+  warningMessage: '',
+  statusMessage: '',
+  statusTone: 'muted',
+  uploadedReferenceUrl: null,
+}
+
+const app = document.querySelector('#preview-app')
+
+app.innerHTML = `
+  <div class="preview-shell">
+    <aside class="panel controls">
+      <h1>Mattress SVG Preview Prototype</h1>
+      <p>Prototype-only surface for perspective, thickness, and color-family validation.</p>
+      <div class="warning-banner hidden" id="data-warning"></div>
+
+      <fieldset>
+        <legend>Preset + Layers</legend>
+        <div>
+          <label for="preset-select">Scenario preset</label>
+          <select id="preset-select"></select>
+        </div>
+        <div class="row">
+          <button type="button" class="small" id="apply-preset">Apply preset</button>
+          <button type="button" class="small" id="add-layer">Add layer</button>
+          <button type="button" class="small" id="reset-defaults">Reset defaults</button>
+        </div>
+        <div class="layer-list" id="layer-list"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Projection</legend>
+        <div class="grid-2">
+          <div>
+            <label for="front-width">Front width</label>
+            <input id="front-width" type="number" min="50" step="1" />
+          </div>
+          <div>
+            <label for="front-height">Front height</label>
+            <input id="front-height" type="number" min="50" step="1" />
+          </div>
+          <div>
+            <label for="depth-dx">Depth dx</label>
+            <input id="depth-dx" type="number" min="1" step="1" />
+          </div>
+          <div>
+            <label for="depth-dy">Depth dy</label>
+            <input id="depth-dy" type="number" min="1" step="1" />
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Label Rules</legend>
+        <div class="grid-2">
+          <div>
+            <label for="label-min">Label min slice px</label>
+            <input id="label-min" type="number" min="1" step="1" />
+          </div>
+          <div>
+            <label for="label-font">Label font size</label>
+            <input id="label-font" type="number" min="8" step="1" />
+          </div>
+        </div>
+      </fieldset>
+    </aside>
+
+    <section class="preview-column">
+      <section class="panel preview-panel">
+        <div class="preview-head">
+          <h2>Reference Comparison</h2>
+          <div class="shareability" id="shareability" data-state="shareable"></div>
+        </div>
+
+        <div class="compare-controls">
+          <div>
+            <label for="compare-mode">Compare mode</label>
+            <select id="compare-mode">
+              <option value="overlay">Overlay</option>
+              <option value="side-by-side">Side-by-side</option>
+            </select>
+          </div>
+          <div>
+            <label for="overlay-opacity">Reference opacity</label>
+            <input id="overlay-opacity" type="range" min="0" max="1" step="0.05" />
+          </div>
+          <div>
+            <label for="nudge-x">Nudge X</label>
+            <input id="nudge-x" type="number" step="1" />
+          </div>
+          <div>
+            <label for="nudge-y">Nudge Y</label>
+            <input id="nudge-y" type="number" step="1" />
+          </div>
+          <div>
+            <label for="reference-upload">Ad-hoc reference</label>
+            <input id="reference-upload" type="file" accept="image/*" />
+          </div>
+        </div>
+
+        <div class="row">
+          <button type="button" class="small" id="use-canonical-ref">Use canonical reference</button>
+          <span class="status-line" id="reference-status"></span>
+        </div>
+
+        <div class="canvas-shell">
+          <div class="overlay-stage" id="overlay-stage">
+            <img id="overlay-reference" alt="Reference outline" />
+            <div class="generated-svg" id="overlay-generated"></div>
+          </div>
+
+          <div class="side-by-side hidden" id="side-by-side-stage">
+            <div class="pane">
+              <h3>Reference</h3>
+              <img id="side-reference" alt="Reference outline" />
+            </div>
+            <div class="pane">
+              <h3>Generated SVG</h3>
+              <div class="generated-svg" id="side-generated"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel diagnostics-panel">
+        <h2>Diagnostics + Acceptance</h2>
+        <div class="stats" id="stats"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Layer</th>
+                <th>Grade</th>
+                <th>Thickness</th>
+                <th>Family</th>
+                <th>Source</th>
+                <th>Fallback</th>
+                <th>Height px</th>
+                <th>Label</th>
+              </tr>
+            </thead>
+            <tbody id="mapping-audit"></tbody>
+          </table>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Point</th>
+                <th>Generated</th>
+                <th>Reference (nudged)</th>
+                <th>Deviation px</th>
+              </tr>
+            </thead>
+            <tbody id="acceptance-audit"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel raw-panel">
+        <h2>Raw SVG</h2>
+        <div class="raw-actions">
+          <button type="button" class="primary" id="copy-svg">Copy SVG</button>
+          <button type="button" id="download-svg">Download SVG</button>
+          <span class="status-line" id="export-status"></span>
+        </div>
+        <textarea id="raw-svg" readonly></textarea>
+      </section>
+    </section>
+  </div>
+`
+
+const dataWarning = document.querySelector('#data-warning')
+const presetSelect = document.querySelector('#preset-select')
+const applyPresetButton = document.querySelector('#apply-preset')
+const addLayerButton = document.querySelector('#add-layer')
+const resetDefaultsButton = document.querySelector('#reset-defaults')
+const layerList = document.querySelector('#layer-list')
+
+const frontWidthInput = document.querySelector('#front-width')
+const frontHeightInput = document.querySelector('#front-height')
+const depthDxInput = document.querySelector('#depth-dx')
+const depthDyInput = document.querySelector('#depth-dy')
+const labelMinInput = document.querySelector('#label-min')
+const labelFontInput = document.querySelector('#label-font')
+
+const compareModeSelect = document.querySelector('#compare-mode')
+const overlayOpacityInput = document.querySelector('#overlay-opacity')
+const nudgeXInput = document.querySelector('#nudge-x')
+const nudgeYInput = document.querySelector('#nudge-y')
+const referenceUploadInput = document.querySelector('#reference-upload')
+const useCanonicalReferenceButton = document.querySelector('#use-canonical-ref')
+
+const shareabilityText = document.querySelector('#shareability')
+const referenceStatusText = document.querySelector('#reference-status')
+const overlayStage = document.querySelector('#overlay-stage')
+const sideBySideStage = document.querySelector('#side-by-side-stage')
+const overlayReference = document.querySelector('#overlay-reference')
+const sideReference = document.querySelector('#side-reference')
+const overlayGenerated = document.querySelector('#overlay-generated')
+const sideGenerated = document.querySelector('#side-generated')
+
+const statsContainer = document.querySelector('#stats')
+const mappingAuditBody = document.querySelector('#mapping-audit')
+const acceptanceAuditBody = document.querySelector('#acceptance-audit')
+
+const rawSvgTextarea = document.querySelector('#raw-svg')
+const copySvgButton = document.querySelector('#copy-svg')
+const downloadSvgButton = document.querySelector('#download-svg')
+const exportStatus = document.querySelector('#export-status')
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+function round2(value) {
+  return Math.round(value * 100) / 100
+}
+
+function deepClone(value) {
+  return JSON.parse(JSON.stringify(value))
+}
+
+function base64UrlEncode(text) {
+  return btoa(unescape(encodeURIComponent(text)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+}
+
+function base64UrlDecode(text) {
+  const normalized = text.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = normalized + '==='.slice((normalized.length + 3) % 4)
+  return decodeURIComponent(escape(atob(padded)))
+}
+
+function toNumber(value, fallback) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : fallback
+}
+
+function sanitizeLayers(layers) {
+  if (!Array.isArray(layers) || !layers.length) {
+    return deepClone(PRESETS['two-layer'].layers)
+  }
+
+  return layers.map((layer) => {
+    const thicknessIn = Math.max(0, toNumber(layer?.thicknessIn, 0))
+    const rawCode = String(layer?.gradeCode || '').trim().toUpperCase()
+    return {
+      thicknessIn,
+      gradeCode: rawCode || null,
+    }
+  })
+}
+
+function getDefaultState(config) {
+  return {
+    selectedPreset: 'two-layer',
+    layers: deepClone(PRESETS['two-layer'].layers),
+    projection: {
+      frontWidth: config.projection.frontWidth,
+      frontHeight: config.projection.frontHeight,
+      depthDx: config.projection.depthDx,
+      depthDy: config.projection.depthDy,
+      strokeWidth: config.projection.strokeWidth,
+      padding: config.projection.padding,
+    },
+    label: {
+      minSliceHeightPx: config.label.minSliceHeightPx,
+      fontSizePx: config.label.fontSizePx,
+    },
+    compare: {
+      mode: 'overlay',
+      opacity: 0.55,
+      nudgeX: 0,
+      nudgeY: 0,
+    },
+    reference: {
+      source: 'canonical',
+    },
+    notes: {
+      uploadedReferenceNotRestored: false,
+    },
+  }
+}
+
+function mergeState(defaultState, rawState) {
+  if (!rawState || typeof rawState !== 'object') return deepClone(defaultState)
+
+  const merged = deepClone(defaultState)
+  merged.selectedPreset = rawState.selectedPreset && PRESETS[rawState.selectedPreset]
+    ? rawState.selectedPreset
+    : merged.selectedPreset
+  merged.layers = sanitizeLayers(rawState.layers)
+
+  merged.projection.frontWidth = Math.max(50, toNumber(rawState?.projection?.frontWidth, merged.projection.frontWidth))
+  merged.projection.frontHeight = Math.max(50, toNumber(rawState?.projection?.frontHeight, merged.projection.frontHeight))
+  merged.projection.depthDx = Math.max(1, toNumber(rawState?.projection?.depthDx, merged.projection.depthDx))
+  merged.projection.depthDy = Math.max(1, toNumber(rawState?.projection?.depthDy, merged.projection.depthDy))
+  merged.projection.strokeWidth = Math.max(1, toNumber(rawState?.projection?.strokeWidth, merged.projection.strokeWidth))
+  merged.projection.padding = Math.max(1, toNumber(rawState?.projection?.padding, merged.projection.padding))
+
+  merged.label.minSliceHeightPx = Math.max(1, toNumber(rawState?.label?.minSliceHeightPx, merged.label.minSliceHeightPx))
+  merged.label.fontSizePx = Math.max(8, toNumber(rawState?.label?.fontSizePx, merged.label.fontSizePx))
+
+  merged.compare.mode = rawState?.compare?.mode === 'side-by-side' ? 'side-by-side' : 'overlay'
+  merged.compare.opacity = Math.min(1, Math.max(0, toNumber(rawState?.compare?.opacity, merged.compare.opacity)))
+  merged.compare.nudgeX = round2(toNumber(rawState?.compare?.nudgeX, merged.compare.nudgeX))
+  merged.compare.nudgeY = round2(toNumber(rawState?.compare?.nudgeY, merged.compare.nudgeY))
+
+  merged.reference.source = rawState?.reference?.source === 'uploaded' ? 'uploaded' : 'canonical'
+
+  return merged
+}
+
+function extractPersistableState() {
+  return {
+    selectedPreset: runtime.state.selectedPreset,
+    layers: runtime.state.layers,
+    projection: runtime.state.projection,
+    label: runtime.state.label,
+    compare: runtime.state.compare,
+    reference: {
+      source: runtime.state.reference.source,
+    },
+  }
+}
+
+function restoreStateFromHash(defaultState) {
+  const rawHash = window.location.hash ? window.location.hash.slice(1) : ''
+  if (!rawHash) return deepClone(defaultState)
+
+  try {
+    if (rawHash.startsWith('ls:')) {
+      const token = rawHash.slice(3)
+      const stored = window.localStorage.getItem(LOCAL_STORAGE_KEY)
+      if (!stored) return deepClone(defaultState)
+      const parsed = JSON.parse(stored)
+      if (!parsed || parsed.token !== token || !parsed.state) return deepClone(defaultState)
+      return mergeState(defaultState, parsed.state)
+    }
+
+    const decoded = base64UrlDecode(rawHash)
+    const parsed = JSON.parse(decoded)
+    return mergeState(defaultState, parsed)
+  } catch {
+    return deepClone(defaultState)
+  }
+}
+
+function persistStateToHash() {
+  const persistable = extractPersistableState()
+  const serialized = JSON.stringify(persistable)
+  const encoded = base64UrlEncode(serialized)
+
+  if (encoded.length <= HASH_LENGTH_LIMIT) {
+    const nextHash = `#${encoded}`
+    if (window.location.hash !== nextHash) {
+      history.replaceState(null, '', nextHash)
+    }
+    window.localStorage.removeItem(LOCAL_STORAGE_KEY)
+    return
+  }
+
+  const token = `ls-${Date.now().toString(36)}`
+  window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({
+    token,
+    state: persistable,
+    savedAt: new Date().toISOString(),
+  }))
+
+  const nextHash = `#ls:${token}`
+  if (window.location.hash !== nextHash) {
+    history.replaceState(null, '', nextHash)
+  }
+}
+
+function formatNumber(value) {
+  const rounded = round2(value)
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded.toFixed(2)).replace(/0+$/, '').replace(/\.$/, '')
+}
+
+function getReferenceSource() {
+  if (runtime.state.reference.source === 'uploaded' && runtime.uploadedReferenceUrl) {
+    return runtime.uploadedReferenceUrl
+  }
+  return runtime.config.acceptance.referencePath
+}
+
+function buildRendererInput() {
+  return {
+    layers: runtime.state.layers,
+    projection: runtime.state.projection,
+    colors: {
+      families: runtime.config.colors.families,
+      neutral: runtime.config.colors.neutral,
+      topLighten: runtime.config.colors.topLighten,
+      sideDarken: runtime.config.colors.sideDarken,
+    },
+    label: {
+      minSliceHeightPx: runtime.state.label.minSliceHeightPx,
+      fontSizePx: runtime.state.label.fontSizePx,
+    },
+    colorResolution: runtime.config.colorResolution,
+    gradeMetadataByCode: runtime.gradeMetadataByCode,
+  }
+}
+
+function ensureValidUploadedReferenceState() {
+  if (runtime.state.reference.source !== 'uploaded') return
+  if (runtime.uploadedReferenceUrl) return
+
+  runtime.state.reference.source = 'canonical'
+  runtime.state.notes.uploadedReferenceNotRestored = true
+}
+
+function renderDataWarning() {
+  if (!runtime.warningMessage) {
+    dataWarning.textContent = ''
+    dataWarning.classList.add('hidden')
+    return
+  }
+
+  dataWarning.textContent = runtime.warningMessage
+  dataWarning.classList.remove('hidden')
+}
+
+function renderPresetOptions() {
+  presetSelect.innerHTML = Object.entries(PRESETS)
+    .map(([key, preset]) => `<option value="${escapeHtml(key)}">${escapeHtml(preset.label)}</option>`)
+    .join('')
+  presetSelect.value = runtime.state.selectedPreset
+}
+
+function buildGradeOptions(selectedCode) {
+  const options = [`<option value="">Unassigned</option>`]
+  const grades = [...runtime.grades].sort((a, b) => String(a.code).localeCompare(String(b.code)))
+
+  for (let i = 0; i < grades.length; i += 1) {
+    const grade = grades[i]
+    const code = String(grade.code || '').trim().toUpperCase()
+    const selected = selectedCode && selectedCode === code ? 'selected' : ''
+    const label = `${code} — ${grade.label_feature || 'Unknown'}`
+    options.push(`<option value="${escapeHtml(code)}" ${selected}>${escapeHtml(label)}</option>`)
+  }
+
+  return options.join('')
+}
+
+function renderLayerRows() {
+  if (!runtime.state.layers.length) {
+    layerList.innerHTML = '<div class="layer-row">No layers. Click Add layer.</div>'
+    return
+  }
+
+  layerList.innerHTML = runtime.state.layers
+    .map((layer, index) => {
+      const selectedCode = layer.gradeCode ? String(layer.gradeCode).trim().toUpperCase() : ''
+      const thicknessId = `layer-thickness-${index}`
+      const gradeId = `layer-grade-${index}`
+      return `
+        <div class="layer-row" data-index="${index}">
+          <div class="layer-row-header">
+            <strong>Layer ${index + 1}</strong>
+            <div class="actions">
+              <button type="button" class="small" data-action="up" data-index="${index}" ${index === 0 ? 'disabled' : ''}>Up</button>
+              <button type="button" class="small" data-action="down" data-index="${index}" ${index === runtime.state.layers.length - 1 ? 'disabled' : ''}>Down</button>
+              <button type="button" class="small" data-action="remove" data-index="${index}" ${runtime.state.layers.length === 1 ? 'disabled' : ''}>Remove</button>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div>
+              <label for="${thicknessId}">Thickness (in)</label>
+              <input id="${thicknessId}" name="${thicknessId}" type="number" min="0" step="0.25" data-field="thickness" data-index="${index}" value="${formatNumber(layer.thicknessIn)}" />
+            </div>
+            <div>
+              <label for="${gradeId}">Foam Grade</label>
+              <select id="${gradeId}" name="${gradeId}" data-field="grade" data-index="${index}">
+                ${buildGradeOptions(selectedCode)}
+              </select>
+            </div>
+          </div>
+        </div>
+      `
+    })
+    .join('')
+}
+
+function renderProjectionControls() {
+  frontWidthInput.value = String(runtime.state.projection.frontWidth)
+  frontHeightInput.value = String(runtime.state.projection.frontHeight)
+  depthDxInput.value = String(runtime.state.projection.depthDx)
+  depthDyInput.value = String(runtime.state.projection.depthDy)
+  labelMinInput.value = String(runtime.state.label.minSliceHeightPx)
+  labelFontInput.value = String(runtime.state.label.fontSizePx)
+}
+
+function renderCompareControls() {
+  compareModeSelect.value = runtime.state.compare.mode
+  overlayOpacityInput.value = String(runtime.state.compare.opacity)
+  nudgeXInput.value = String(runtime.state.compare.nudgeX)
+  nudgeYInput.value = String(runtime.state.compare.nudgeY)
+
+  const referenceSource = getReferenceSource()
+  overlayReference.src = referenceSource
+  sideReference.src = referenceSource
+
+  overlayReference.style.opacity = String(runtime.state.compare.opacity)
+  overlayReference.style.transform = `translate(${runtime.state.compare.nudgeX}px, ${runtime.state.compare.nudgeY}px)`
+  sideReference.style.transform = `translate(${runtime.state.compare.nudgeX}px, ${runtime.state.compare.nudgeY}px)`
+
+  if (runtime.state.compare.mode === 'overlay') {
+    overlayStage.classList.remove('hidden')
+    sideBySideStage.classList.add('hidden')
+  } else {
+    overlayStage.classList.add('hidden')
+    sideBySideStage.classList.remove('hidden')
+  }
+
+  if (runtime.state.reference.source === 'uploaded' && runtime.uploadedReferenceUrl) {
+    referenceStatusText.textContent = 'Using ad-hoc uploaded reference image.'
+    referenceStatusText.className = 'status-line warn'
+  } else if (runtime.state.notes.uploadedReferenceNotRestored) {
+    referenceStatusText.textContent = 'Uploaded image is not shareable via URL hash. Reverted to canonical reference.'
+    referenceStatusText.className = 'status-line warn'
+  } else {
+    referenceStatusText.textContent = 'Using canonical reference from /public/references/mattress-outline-reference.png.'
+    referenceStatusText.className = 'status-line'
+  }
+}
+
+function renderShareability() {
+  const nonShareable = runtime.state.reference.source === 'uploaded'
+  shareabilityText.dataset.state = nonShareable ? 'non-shareable' : 'shareable'
+  shareabilityText.textContent = nonShareable
+    ? 'Non-shareable session (uploaded reference not encoded in URL).'
+    : 'Shareable session (state encoded in URL hash/local pointer).'
+}
+
+function computeAcceptance(output) {
+  const rows = []
+  const keyPoints = output?.diagnostics?.keyPoints || {}
+  const referencePoints = Array.isArray(runtime.config.acceptance.referencePoints)
+    ? runtime.config.acceptance.referencePoints
+    : []
+
+  let maxDeviation = 0
+
+  for (let i = 0; i < referencePoints.length; i += 1) {
+    const reference = referencePoints[i]
+    const generated = keyPoints[reference.name]
+    if (!generated) continue
+
+    const referenceX = reference.x + runtime.state.compare.nudgeX
+    const referenceY = reference.y + runtime.state.compare.nudgeY
+
+    const dx = generated.x - referenceX
+    const dy = generated.y - referenceY
+    const deviation = round2(Math.sqrt(dx * dx + dy * dy))
+
+    if (deviation > maxDeviation) maxDeviation = deviation
+
+    rows.push({
+      name: reference.name,
+      generated: `${formatNumber(generated.x)}, ${formatNumber(generated.y)}`,
+      reference: `${formatNumber(referenceX)}, ${formatNumber(referenceY)}`,
+      deviation,
+    })
+  }
+
+  const threshold = Number(runtime.config.acceptance.maxDeviationPx) || 2
+  const pass = maxDeviation <= threshold
+
+  return {
+    rows,
+    maxDeviation: round2(maxDeviation),
+    threshold,
+    pass,
+  }
+}
+
+function renderDiagnostics(output, acceptance) {
+  const unmapped = output.diagnostics.unmappedCodes
+  const fallbackCount = output.diagnostics.sliceAudit.filter((slice) => slice.fallbackUsed).length
+  const bytes = new TextEncoder().encode(runtime.currentSvg || '').length
+  const minSliceApplied = output.diagnostics.minSlicePxApplied
+
+  statsContainer.innerHTML = [
+    `<span class="pill">Min slice applied: ${formatNumber(minSliceApplied)} px</span>`,
+    `<span class="pill">Front total height: ${formatNumber(output.diagnostics.totalHeightPx)} px</span>`,
+    `<span class="pill">Fallbacks: ${fallbackCount}</span>`,
+    `<span class="pill">Unmapped codes: ${unmapped.length ? escapeHtml(unmapped.join(', ')) : 'none'}</span>`,
+    `<span class="pill ${acceptance.pass ? 'pass' : 'fail'}">Perspective gate: ${acceptance.pass ? 'PASS' : 'FAIL'} (${formatNumber(acceptance.maxDeviation)} / ${formatNumber(acceptance.threshold)} px)</span>`,
+    `<span class="pill ${bytes > SVG_WARN_BYTES ? 'fail' : ''}">SVG size: ${Math.round(bytes / 1024)} KB</span>`,
+  ].join('')
+
+  mappingAuditBody.innerHTML = output.diagnostics.sliceAudit
+    .map((slice, idx) => {
+      const rendered = output.slices.find((item) => item.index === slice.index)
+      const labelShown = rendered ? rendered.labelShown : false
+      return `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${escapeHtml(slice.gradeCode || 'UNASSIGNED')}</td>
+          <td>${formatNumber(slice.thicknessIn)} in</td>
+          <td>${escapeHtml(slice.colorFamily)}</td>
+          <td>${escapeHtml(slice.colorSource)}</td>
+          <td>${slice.fallbackUsed ? 'Yes' : 'No'}</td>
+          <td>${formatNumber(slice.heightPx)}</td>
+          <td>${labelShown ? 'Shown' : 'Hidden'}</td>
+        </tr>
+      `
+    })
+    .join('')
+
+  acceptanceAuditBody.innerHTML = acceptance.rows
+    .map((row) => `
+      <tr>
+        <td>${escapeHtml(row.name)}</td>
+        <td>${escapeHtml(row.generated)}</td>
+        <td>${escapeHtml(row.reference)}</td>
+        <td>${formatNumber(row.deviation)}</td>
+      </tr>
+    `)
+    .join('')
+}
+
+function renderSvgOutput(output) {
+  runtime.currentSvg = output.svg
+  runtime.latestOutput = output
+
+  overlayGenerated.innerHTML = runtime.currentSvg
+  sideGenerated.innerHTML = runtime.currentSvg
+  rawSvgTextarea.value = runtime.currentSvg
+
+  const bytes = new TextEncoder().encode(runtime.currentSvg).length
+  if (bytes > SVG_WARN_BYTES) {
+    runtime.statusMessage = `SVG warning: ${Math.round(bytes / 1024)}KB exceeds 100KB target.`
+    runtime.statusTone = 'warn'
+  } else {
+    runtime.statusMessage = 'Ready'
+    runtime.statusTone = 'muted'
+  }
+
+  exportStatus.textContent = runtime.statusMessage
+  exportStatus.className = runtime.statusTone === 'warn' ? 'status-line warn' : 'status-line'
+}
+
+function renderAll() {
+  ensureValidUploadedReferenceState()
+
+  renderDataWarning()
+  renderPresetOptions()
+  renderLayerRows()
+  renderProjectionControls()
+  renderCompareControls()
+  renderShareability()
+
+  const output = generateMattressPreviewSvg(buildRendererInput())
+  renderSvgOutput(output)
+
+  const acceptance = computeAcceptance(output)
+  renderDiagnostics(output, acceptance)
+
+  persistStateToHash()
+}
+
+function setLayers(layers) {
+  runtime.state.layers = sanitizeLayers(layers)
+}
+
+function applyPreset(key) {
+  if (!PRESETS[key]) return
+  runtime.state.selectedPreset = key
+  setLayers(PRESETS[key].layers)
+  renderAll()
+}
+
+function resetToDefaults() {
+  const defaultState = getDefaultState(runtime.config)
+  runtime.state = mergeState(defaultState, defaultState)
+  runtime.state.notes.uploadedReferenceNotRestored = false
+
+  if (runtime.uploadedReferenceUrl) {
+    URL.revokeObjectURL(runtime.uploadedReferenceUrl)
+    runtime.uploadedReferenceUrl = null
+  }
+
+  renderAll()
+}
+
+function moveLayer(index, direction) {
+  const target = index + direction
+  if (target < 0 || target >= runtime.state.layers.length) return
+  const next = [...runtime.state.layers]
+  const [item] = next.splice(index, 1)
+  next.splice(target, 0, item)
+  runtime.state.layers = next
+  renderAll()
+}
+
+function removeLayer(index) {
+  if (runtime.state.layers.length <= 1) return
+  runtime.state.layers = runtime.state.layers.filter((_, idx) => idx !== index)
+  renderAll()
+}
+
+function addLayer() {
+  runtime.state.layers = [
+    ...runtime.state.layers,
+    { thicknessIn: 1, gradeCode: null },
+  ]
+  renderAll()
+}
+
+function handleLayerInput(field, index, value) {
+  const nextLayers = [...runtime.state.layers]
+  const layer = { ...nextLayers[index] }
+
+  if (field === 'thickness') {
+    layer.thicknessIn = Math.max(0, toNumber(value, layer.thicknessIn))
+  }
+
+  if (field === 'grade') {
+    const normalized = String(value || '').trim().toUpperCase()
+    layer.gradeCode = normalized || null
+  }
+
+  nextLayers[index] = layer
+  runtime.state.layers = nextLayers
+  renderAll()
+}
+
+function handleProjectionChange(field, value) {
+  const projection = { ...runtime.state.projection }
+  const numeric = Math.max(1, toNumber(value, projection[field]))
+
+  if (field === 'frontWidth' || field === 'frontHeight') {
+    projection[field] = Math.max(50, numeric)
+  } else {
+    projection[field] = numeric
+  }
+
+  runtime.state.projection = projection
+  renderAll()
+}
+
+function handleLabelChange(field, value) {
+  const label = { ...runtime.state.label }
+  const numeric = Math.max(1, toNumber(value, label[field]))
+  label[field] = field === 'fontSizePx' ? Math.max(8, numeric) : numeric
+  runtime.state.label = label
+  renderAll()
+}
+
+function handleCompareChange(field, value) {
+  const compare = { ...runtime.state.compare }
+
+  if (field === 'mode') {
+    compare.mode = value === 'side-by-side' ? 'side-by-side' : 'overlay'
+  }
+
+  if (field === 'opacity') {
+    compare.opacity = Math.min(1, Math.max(0, toNumber(value, compare.opacity)))
+  }
+
+  if (field === 'nudgeX' || field === 'nudgeY') {
+    compare[field] = round2(toNumber(value, compare[field]))
+  }
+
+  runtime.state.compare = compare
+  renderAll()
+}
+
+function useCanonicalReference() {
+  runtime.state.reference.source = 'canonical'
+  runtime.state.notes.uploadedReferenceNotRestored = false
+
+  if (runtime.uploadedReferenceUrl) {
+    URL.revokeObjectURL(runtime.uploadedReferenceUrl)
+    runtime.uploadedReferenceUrl = null
+  }
+
+  referenceUploadInput.value = ''
+  renderAll()
+}
+
+function setUploadedReference(file) {
+  if (!file) return
+
+  if (runtime.uploadedReferenceUrl) {
+    URL.revokeObjectURL(runtime.uploadedReferenceUrl)
+  }
+
+  runtime.uploadedReferenceUrl = URL.createObjectURL(file)
+  runtime.state.reference.source = 'uploaded'
+  runtime.state.notes.uploadedReferenceNotRestored = false
+  renderAll()
+}
+
+function verifyDeterministicSvg() {
+  const regenerated = generateMattressPreviewSvg(buildRendererInput())
+  return regenerated.svg === runtime.currentSvg
+}
+
+async function copySvg() {
+  if (!verifyDeterministicSvg()) {
+    exportStatus.textContent = 'Blocked: deterministic SVG check failed.'
+    exportStatus.className = 'status-line error'
+    return
+  }
+
+  try {
+    await navigator.clipboard.writeText(runtime.currentSvg)
+    exportStatus.textContent = 'SVG copied to clipboard.'
+    exportStatus.className = 'status-line'
+  } catch {
+    exportStatus.textContent = 'Copy failed. Browser clipboard permission required.'
+    exportStatus.className = 'status-line error'
+  }
+}
+
+function downloadSvg() {
+  if (!verifyDeterministicSvg()) {
+    exportStatus.textContent = 'Blocked: deterministic SVG check failed.'
+    exportStatus.className = 'status-line error'
+    return
+  }
+
+  const blob = new Blob([runtime.currentSvg], { type: 'image/svg+xml' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'mattress-preview.svg'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+
+  exportStatus.textContent = 'SVG downloaded.'
+  exportStatus.className = 'status-line'
+}
+
+layerList.addEventListener('click', (event) => {
+  const button = event.target.closest('button[data-action]')
+  if (!button) return
+
+  const action = button.dataset.action
+  const index = Number(button.dataset.index)
+  if (!Number.isFinite(index)) return
+
+  if (action === 'up') moveLayer(index, -1)
+  if (action === 'down') moveLayer(index, 1)
+  if (action === 'remove') removeLayer(index)
+})
+
+layerList.addEventListener('input', (event) => {
+  const field = event.target.dataset.field
+  const index = Number(event.target.dataset.index)
+  if (!field || !Number.isFinite(index)) return
+  handleLayerInput(field, index, event.target.value)
+})
+
+layerList.addEventListener('change', (event) => {
+  const field = event.target.dataset.field
+  const index = Number(event.target.dataset.index)
+  if (!field || !Number.isFinite(index)) return
+  handleLayerInput(field, index, event.target.value)
+})
+
+applyPresetButton.addEventListener('click', () => {
+  applyPreset(presetSelect.value)
+})
+
+presetSelect.addEventListener('change', () => {
+  runtime.state.selectedPreset = presetSelect.value
+  persistStateToHash()
+})
+
+addLayerButton.addEventListener('click', addLayer)
+resetDefaultsButton.addEventListener('click', resetToDefaults)
+
+frontWidthInput.addEventListener('input', (event) => handleProjectionChange('frontWidth', event.target.value))
+frontHeightInput.addEventListener('input', (event) => handleProjectionChange('frontHeight', event.target.value))
+depthDxInput.addEventListener('input', (event) => handleProjectionChange('depthDx', event.target.value))
+depthDyInput.addEventListener('input', (event) => handleProjectionChange('depthDy', event.target.value))
+
+labelMinInput.addEventListener('input', (event) => handleLabelChange('minSliceHeightPx', event.target.value))
+labelFontInput.addEventListener('input', (event) => handleLabelChange('fontSizePx', event.target.value))
+
+compareModeSelect.addEventListener('change', (event) => handleCompareChange('mode', event.target.value))
+overlayOpacityInput.addEventListener('input', (event) => handleCompareChange('opacity', event.target.value))
+nudgeXInput.addEventListener('input', (event) => handleCompareChange('nudgeX', event.target.value))
+nudgeYInput.addEventListener('input', (event) => handleCompareChange('nudgeY', event.target.value))
+
+referenceUploadInput.addEventListener('change', (event) => {
+  const file = event.target.files?.[0]
+  if (file) setUploadedReference(file)
+})
+
+useCanonicalReferenceButton.addEventListener('click', useCanonicalReference)
+copySvgButton.addEventListener('click', copySvg)
+downloadSvgButton.addEventListener('click', downloadSvg)
+
+async function loadConfig() {
+  const response = await fetch('/mattress_preview_config.json')
+  if (!response.ok) {
+    throw new Error(`Failed to load mattress preview config (${response.status})`)
+  }
+  return response.json()
+}
+
+async function loadGrades() {
+  const response = await fetch('/foam_grades_custom_shape.json')
+  if (!response.ok) {
+    throw new Error(`Failed to load foam grades (${response.status})`)
+  }
+  const data = await response.json()
+  if (!Array.isArray(data?.grades)) {
+    throw new Error('Foam grades payload missing grades array')
+  }
+  return data.grades
+}
+
+async function init() {
+  runtime.config = await loadConfig()
+
+  try {
+    runtime.grades = await loadGrades()
+    runtime.warningMessage = ''
+  } catch (error) {
+    runtime.grades = FALLBACK_GRADES
+    runtime.warningMessage = 'Foam grade JSON failed to load. Using fallback sample grades for geometry validation.'
+  }
+
+  runtime.gradeMetadataByCode = buildGradeMetadataByCode(runtime.grades)
+
+  const defaultState = getDefaultState(runtime.config)
+  runtime.state = restoreStateFromHash(defaultState)
+  runtime.state = mergeState(defaultState, runtime.state)
+
+  ensureValidUploadedReferenceState()
+  renderAll()
+}
+
+init().catch((error) => {
+  dataWarning.textContent = `Prototype failed to initialize: ${error.message || String(error)}`
+  dataWarning.classList.remove('hidden')
+})
