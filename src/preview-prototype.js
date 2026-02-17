@@ -90,7 +90,6 @@ const runtime = {
   warningMessage: '',
   statusMessage: '',
   statusTone: 'muted',
-  uploadedReferenceUrl: null,
 }
 
 const app = document.querySelector('#preview-app')
@@ -156,62 +155,18 @@ app.innerHTML = `
     <section class="preview-column">
       <section class="panel preview-panel">
         <div class="preview-head">
-          <h2>Reference Comparison</h2>
-          <div class="shareability" id="shareability" data-state="shareable"></div>
-        </div>
-
-        <div class="compare-controls">
-          <div>
-            <label for="compare-mode">Compare mode</label>
-            <select id="compare-mode">
-              <option value="overlay">Overlay</option>
-              <option value="side-by-side">Side-by-side</option>
-            </select>
-          </div>
-          <div>
-            <label for="overlay-opacity">Reference opacity</label>
-            <input id="overlay-opacity" type="range" min="0" max="1" step="0.05" />
-          </div>
-          <div>
-            <label for="nudge-x">Nudge X</label>
-            <input id="nudge-x" type="number" step="1" />
-          </div>
-          <div>
-            <label for="nudge-y">Nudge Y</label>
-            <input id="nudge-y" type="number" step="1" />
-          </div>
-          <div>
-            <label for="reference-upload">Ad-hoc reference</label>
-            <input id="reference-upload" type="file" accept="image/*" />
-          </div>
-        </div>
-
-        <div class="row">
-          <button type="button" class="small" id="use-canonical-ref">Use canonical reference</button>
-          <span class="status-line" id="reference-status"></span>
+          <h2>Generated SVG Preview</h2>
         </div>
 
         <div class="canvas-shell">
-          <div class="overlay-stage" id="overlay-stage">
-            <img id="overlay-reference" alt="Reference outline" />
-            <div class="generated-svg" id="overlay-generated"></div>
-          </div>
-
-          <div class="side-by-side hidden" id="side-by-side-stage">
-            <div class="pane">
-              <h3>Reference</h3>
-              <img id="side-reference" alt="Reference outline" />
-            </div>
-            <div class="pane">
-              <h3>Generated SVG</h3>
-              <div class="generated-svg" id="side-generated"></div>
-            </div>
+          <div class="generated-stage">
+            <div class="generated-svg" id="generated-preview"></div>
           </div>
         </div>
       </section>
 
       <section class="panel diagnostics-panel">
-        <h2>Diagnostics + Acceptance</h2>
+        <h2>Diagnostics</h2>
         <div class="stats" id="stats"></div>
         <div class="table-wrap">
           <table>
@@ -228,20 +183,6 @@ app.innerHTML = `
               </tr>
             </thead>
             <tbody id="mapping-audit"></tbody>
-          </table>
-        </div>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Point</th>
-                <th>Generated</th>
-                <th>Reference (nudged)</th>
-                <th>Deviation px</th>
-              </tr>
-            </thead>
-            <tbody id="acceptance-audit"></tbody>
           </table>
         </div>
       </section>
@@ -273,25 +214,9 @@ const depthDyInput = document.querySelector('#depth-dy')
 const labelMinInput = document.querySelector('#label-min')
 const labelFontInput = document.querySelector('#label-font')
 
-const compareModeSelect = document.querySelector('#compare-mode')
-const overlayOpacityInput = document.querySelector('#overlay-opacity')
-const nudgeXInput = document.querySelector('#nudge-x')
-const nudgeYInput = document.querySelector('#nudge-y')
-const referenceUploadInput = document.querySelector('#reference-upload')
-const useCanonicalReferenceButton = document.querySelector('#use-canonical-ref')
-
-const shareabilityText = document.querySelector('#shareability')
-const referenceStatusText = document.querySelector('#reference-status')
-const overlayStage = document.querySelector('#overlay-stage')
-const sideBySideStage = document.querySelector('#side-by-side-stage')
-const overlayReference = document.querySelector('#overlay-reference')
-const sideReference = document.querySelector('#side-reference')
-const overlayGenerated = document.querySelector('#overlay-generated')
-const sideGenerated = document.querySelector('#side-generated')
-
+const generatedPreview = document.querySelector('#generated-preview')
 const statsContainer = document.querySelector('#stats')
 const mappingAuditBody = document.querySelector('#mapping-audit')
-const acceptanceAuditBody = document.querySelector('#acceptance-audit')
 
 const rawSvgTextarea = document.querySelector('#raw-svg')
 const copySvgButton = document.querySelector('#copy-svg')
@@ -364,18 +289,6 @@ function getDefaultState(config) {
       minSliceHeightPx: config.label.minSliceHeightPx,
       fontSizePx: config.label.fontSizePx,
     },
-    compare: {
-      mode: 'overlay',
-      opacity: 0.55,
-      nudgeX: 0,
-      nudgeY: 0,
-    },
-    reference: {
-      source: 'canonical',
-    },
-    notes: {
-      uploadedReferenceNotRestored: false,
-    },
   }
 }
 
@@ -398,13 +311,6 @@ function mergeState(defaultState, rawState) {
   merged.label.minSliceHeightPx = Math.max(1, toNumber(rawState?.label?.minSliceHeightPx, merged.label.minSliceHeightPx))
   merged.label.fontSizePx = Math.max(8, toNumber(rawState?.label?.fontSizePx, merged.label.fontSizePx))
 
-  merged.compare.mode = rawState?.compare?.mode === 'side-by-side' ? 'side-by-side' : 'overlay'
-  merged.compare.opacity = Math.min(1, Math.max(0, toNumber(rawState?.compare?.opacity, merged.compare.opacity)))
-  merged.compare.nudgeX = round2(toNumber(rawState?.compare?.nudgeX, merged.compare.nudgeX))
-  merged.compare.nudgeY = round2(toNumber(rawState?.compare?.nudgeY, merged.compare.nudgeY))
-
-  merged.reference.source = rawState?.reference?.source === 'uploaded' ? 'uploaded' : 'canonical'
-
   return merged
 }
 
@@ -414,10 +320,6 @@ function extractPersistableState() {
     layers: runtime.state.layers,
     projection: runtime.state.projection,
     label: runtime.state.label,
-    compare: runtime.state.compare,
-    reference: {
-      source: runtime.state.reference.source,
-    },
   }
 }
 
@@ -475,13 +377,6 @@ function formatNumber(value) {
   return Number.isInteger(rounded) ? String(rounded) : String(rounded.toFixed(2)).replace(/0+$/, '').replace(/\.$/, '')
 }
 
-function getReferenceSource() {
-  if (runtime.state.reference.source === 'uploaded' && runtime.uploadedReferenceUrl) {
-    return runtime.uploadedReferenceUrl
-  }
-  return runtime.config.acceptance.referencePath
-}
-
 function buildRendererInput() {
   return {
     layers: runtime.state.layers,
@@ -499,14 +394,6 @@ function buildRendererInput() {
     colorResolution: runtime.config.colorResolution,
     gradeMetadataByCode: runtime.gradeMetadataByCode,
   }
-}
-
-function ensureValidUploadedReferenceState() {
-  if (runtime.state.reference.source !== 'uploaded') return
-  if (runtime.uploadedReferenceUrl) return
-
-  runtime.state.reference.source = 'canonical'
-  runtime.state.notes.uploadedReferenceNotRestored = true
 }
 
 function renderDataWarning() {
@@ -590,91 +477,7 @@ function renderProjectionControls() {
   labelFontInput.value = String(runtime.state.label.fontSizePx)
 }
 
-function renderCompareControls() {
-  compareModeSelect.value = runtime.state.compare.mode
-  overlayOpacityInput.value = String(runtime.state.compare.opacity)
-  nudgeXInput.value = String(runtime.state.compare.nudgeX)
-  nudgeYInput.value = String(runtime.state.compare.nudgeY)
-
-  const referenceSource = getReferenceSource()
-  overlayReference.src = referenceSource
-  sideReference.src = referenceSource
-
-  overlayReference.style.opacity = String(runtime.state.compare.opacity)
-  overlayReference.style.transform = `translate(${runtime.state.compare.nudgeX}px, ${runtime.state.compare.nudgeY}px)`
-  sideReference.style.transform = `translate(${runtime.state.compare.nudgeX}px, ${runtime.state.compare.nudgeY}px)`
-
-  if (runtime.state.compare.mode === 'overlay') {
-    overlayStage.classList.remove('hidden')
-    sideBySideStage.classList.add('hidden')
-  } else {
-    overlayStage.classList.add('hidden')
-    sideBySideStage.classList.remove('hidden')
-  }
-
-  if (runtime.state.reference.source === 'uploaded' && runtime.uploadedReferenceUrl) {
-    referenceStatusText.textContent = 'Using ad-hoc uploaded reference image.'
-    referenceStatusText.className = 'status-line warn'
-  } else if (runtime.state.notes.uploadedReferenceNotRestored) {
-    referenceStatusText.textContent = 'Uploaded image is not shareable via URL hash. Reverted to canonical reference.'
-    referenceStatusText.className = 'status-line warn'
-  } else {
-    referenceStatusText.textContent = 'Using canonical reference from /public/references/mattress-outline-reference.png.'
-    referenceStatusText.className = 'status-line'
-  }
-}
-
-function renderShareability() {
-  const nonShareable = runtime.state.reference.source === 'uploaded'
-  shareabilityText.dataset.state = nonShareable ? 'non-shareable' : 'shareable'
-  shareabilityText.textContent = nonShareable
-    ? 'Non-shareable session (uploaded reference not encoded in URL).'
-    : 'Shareable session (state encoded in URL hash/local pointer).'
-}
-
-function computeAcceptance(output) {
-  const rows = []
-  const keyPoints = output?.diagnostics?.keyPoints || {}
-  const referencePoints = Array.isArray(runtime.config.acceptance.referencePoints)
-    ? runtime.config.acceptance.referencePoints
-    : []
-
-  let maxDeviation = 0
-
-  for (let i = 0; i < referencePoints.length; i += 1) {
-    const reference = referencePoints[i]
-    const generated = keyPoints[reference.name]
-    if (!generated) continue
-
-    const referenceX = reference.x + runtime.state.compare.nudgeX
-    const referenceY = reference.y + runtime.state.compare.nudgeY
-
-    const dx = generated.x - referenceX
-    const dy = generated.y - referenceY
-    const deviation = round2(Math.sqrt(dx * dx + dy * dy))
-
-    if (deviation > maxDeviation) maxDeviation = deviation
-
-    rows.push({
-      name: reference.name,
-      generated: `${formatNumber(generated.x)}, ${formatNumber(generated.y)}`,
-      reference: `${formatNumber(referenceX)}, ${formatNumber(referenceY)}`,
-      deviation,
-    })
-  }
-
-  const threshold = Number(runtime.config.acceptance.maxDeviationPx) || 2
-  const pass = maxDeviation <= threshold
-
-  return {
-    rows,
-    maxDeviation: round2(maxDeviation),
-    threshold,
-    pass,
-  }
-}
-
-function renderDiagnostics(output, acceptance) {
+function renderDiagnostics(output) {
   const unmapped = output.diagnostics.unmappedCodes
   const fallbackCount = output.diagnostics.sliceAudit.filter((slice) => slice.fallbackUsed).length
   const bytes = new TextEncoder().encode(runtime.currentSvg || '').length
@@ -685,7 +488,6 @@ function renderDiagnostics(output, acceptance) {
     `<span class="pill">Front total height: ${formatNumber(output.diagnostics.totalHeightPx)} px</span>`,
     `<span class="pill">Fallbacks: ${fallbackCount}</span>`,
     `<span class="pill">Unmapped codes: ${unmapped.length ? escapeHtml(unmapped.join(', ')) : 'none'}</span>`,
-    `<span class="pill ${acceptance.pass ? 'pass' : 'fail'}">Perspective gate: ${acceptance.pass ? 'PASS' : 'FAIL'} (${formatNumber(acceptance.maxDeviation)} / ${formatNumber(acceptance.threshold)} px)</span>`,
     `<span class="pill ${bytes > SVG_WARN_BYTES ? 'fail' : ''}">SVG size: ${Math.round(bytes / 1024)} KB</span>`,
   ].join('')
 
@@ -707,25 +509,13 @@ function renderDiagnostics(output, acceptance) {
       `
     })
     .join('')
-
-  acceptanceAuditBody.innerHTML = acceptance.rows
-    .map((row) => `
-      <tr>
-        <td>${escapeHtml(row.name)}</td>
-        <td>${escapeHtml(row.generated)}</td>
-        <td>${escapeHtml(row.reference)}</td>
-        <td>${formatNumber(row.deviation)}</td>
-      </tr>
-    `)
-    .join('')
 }
 
 function renderSvgOutput(output) {
   runtime.currentSvg = output.svg
   runtime.latestOutput = output
 
-  overlayGenerated.innerHTML = runtime.currentSvg
-  sideGenerated.innerHTML = runtime.currentSvg
+  generatedPreview.innerHTML = runtime.currentSvg
   rawSvgTextarea.value = runtime.currentSvg
 
   const bytes = new TextEncoder().encode(runtime.currentSvg).length
@@ -742,20 +532,14 @@ function renderSvgOutput(output) {
 }
 
 function renderAll() {
-  ensureValidUploadedReferenceState()
-
   renderDataWarning()
   renderPresetOptions()
   renderLayerRows()
   renderProjectionControls()
-  renderCompareControls()
-  renderShareability()
 
   const output = generateMattressPreviewSvg(buildRendererInput())
   renderSvgOutput(output)
-
-  const acceptance = computeAcceptance(output)
-  renderDiagnostics(output, acceptance)
+  renderDiagnostics(output)
 
   persistStateToHash()
 }
@@ -774,13 +558,6 @@ function applyPreset(key) {
 function resetToDefaults() {
   const defaultState = getDefaultState(runtime.config)
   runtime.state = mergeState(defaultState, defaultState)
-  runtime.state.notes.uploadedReferenceNotRestored = false
-
-  if (runtime.uploadedReferenceUrl) {
-    URL.revokeObjectURL(runtime.uploadedReferenceUrl)
-    runtime.uploadedReferenceUrl = null
-  }
-
   renderAll()
 }
 
@@ -845,51 +622,6 @@ function handleLabelChange(field, value) {
   const numeric = Math.max(1, toNumber(value, label[field]))
   label[field] = field === 'fontSizePx' ? Math.max(8, numeric) : numeric
   runtime.state.label = label
-  renderAll()
-}
-
-function handleCompareChange(field, value) {
-  const compare = { ...runtime.state.compare }
-
-  if (field === 'mode') {
-    compare.mode = value === 'side-by-side' ? 'side-by-side' : 'overlay'
-  }
-
-  if (field === 'opacity') {
-    compare.opacity = Math.min(1, Math.max(0, toNumber(value, compare.opacity)))
-  }
-
-  if (field === 'nudgeX' || field === 'nudgeY') {
-    compare[field] = round2(toNumber(value, compare[field]))
-  }
-
-  runtime.state.compare = compare
-  renderAll()
-}
-
-function useCanonicalReference() {
-  runtime.state.reference.source = 'canonical'
-  runtime.state.notes.uploadedReferenceNotRestored = false
-
-  if (runtime.uploadedReferenceUrl) {
-    URL.revokeObjectURL(runtime.uploadedReferenceUrl)
-    runtime.uploadedReferenceUrl = null
-  }
-
-  referenceUploadInput.value = ''
-  renderAll()
-}
-
-function setUploadedReference(file) {
-  if (!file) return
-
-  if (runtime.uploadedReferenceUrl) {
-    URL.revokeObjectURL(runtime.uploadedReferenceUrl)
-  }
-
-  runtime.uploadedReferenceUrl = URL.createObjectURL(file)
-  runtime.state.reference.source = 'uploaded'
-  runtime.state.notes.uploadedReferenceNotRestored = false
   renderAll()
 }
 
@@ -983,17 +715,6 @@ depthDyInput.addEventListener('input', (event) => handleProjectionChange('depthD
 labelMinInput.addEventListener('input', (event) => handleLabelChange('minSliceHeightPx', event.target.value))
 labelFontInput.addEventListener('input', (event) => handleLabelChange('fontSizePx', event.target.value))
 
-compareModeSelect.addEventListener('change', (event) => handleCompareChange('mode', event.target.value))
-overlayOpacityInput.addEventListener('input', (event) => handleCompareChange('opacity', event.target.value))
-nudgeXInput.addEventListener('input', (event) => handleCompareChange('nudgeX', event.target.value))
-nudgeYInput.addEventListener('input', (event) => handleCompareChange('nudgeY', event.target.value))
-
-referenceUploadInput.addEventListener('change', (event) => {
-  const file = event.target.files?.[0]
-  if (file) setUploadedReference(file)
-})
-
-useCanonicalReferenceButton.addEventListener('click', useCanonicalReference)
 copySvgButton.addEventListener('click', copySvg)
 downloadSvgButton.addEventListener('click', downloadSvg)
 
@@ -1033,8 +754,6 @@ async function init() {
   const defaultState = getDefaultState(runtime.config)
   runtime.state = restoreStateFromHash(defaultState)
   runtime.state = mergeState(defaultState, runtime.state)
-
-  ensureValidUploadedReferenceState()
   renderAll()
 }
 

@@ -84,17 +84,5 @@
         { "match": "economy", "family": "white" }
       ]
     }
-  },
-  "acceptance": {
-    "maxDeviationPx": 2,
-    "referencePath": "/references/mattress-outline-reference.png",
-    "referencePoints": [
-      { "name": "frontTopLeft", "x": 24, "y": 68 },
-      { "name": "frontTopRight", "x": 344, "y": 68 },
-      { "name": "frontBottomRight", "x": 344, "y": 248 },
-      { "name": "frontBottomLeft", "x": 24, "y": 248 },
-      { "name": "backTopLeft", "x": 114, "y": 24 },
-      { "name": "backTopRight", "x": 434, "y": 24 }
-    ]
   }
 }
