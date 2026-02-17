@@ -2,6 +2,13 @@ import './preview-prototype.css'
 
 import { buildGradeMetadataByCode } from './preview/colorResolver.js'
 import { generateMattressPreviewSvg } from './preview/index.js'
+import { normalizeStyleMode } from './preview/styleTextureResolver.js'
+import {
+  PREVIEW_STYLE_OPTIONS,
+  clampStyleControlValue,
+  getStyleControlDefs,
+  sanitizeStyleOverrides,
+} from './preview/styleControls.js'
 
 const LOCAL_STORAGE_KEY = 'foamite.preview.prototype.state.v1'
 const HASH_LENGTH_LIMIT = 1500
@@ -138,6 +145,15 @@ app.innerHTML = `
       </fieldset>
 
       <fieldset>
+        <legend>Style</legend>
+        <div class="segmented" id="style-tabs"></div>
+        <div class="style-controls" id="style-controls"></div>
+        <div class="row">
+          <button type="button" class="small" id="reset-style-controls">Reset active style</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
         <legend>Label Rules</legend>
         <div class="grid-2">
           <div>
@@ -213,6 +229,9 @@ const depthDxInput = document.querySelector('#depth-dx')
 const depthDyInput = document.querySelector('#depth-dy')
 const labelMinInput = document.querySelector('#label-min')
 const labelFontInput = document.querySelector('#label-font')
+const styleTabs = document.querySelector('#style-tabs')
+const styleControls = document.querySelector('#style-controls')
+const resetStyleControlsButton = document.querySelector('#reset-style-controls')
 
 const generatedPreview = document.querySelector('#generated-preview')
 const statsContainer = document.querySelector('#stats')
@@ -289,6 +308,10 @@ function getDefaultState(config) {
       minSliceHeightPx: config.label.minSliceHeightPx,
       fontSizePx: config.label.fontSizePx,
     },
+    style: {
+      mode: normalizeStyleMode(config?.styles?.defaultMode || 'classic_default'),
+      overridesByMode: {},
+    },
   }
 }
 
@@ -310,6 +333,8 @@ function mergeState(defaultState, rawState) {
 
   merged.label.minSliceHeightPx = Math.max(1, toNumber(rawState?.label?.minSliceHeightPx, merged.label.minSliceHeightPx))
   merged.label.fontSizePx = Math.max(8, toNumber(rawState?.label?.fontSizePx, merged.label.fontSizePx))
+  merged.style.mode = normalizeStyleMode(rawState?.style?.mode, merged.style.mode)
+  merged.style.overridesByMode = sanitizeStyleOverrides(rawState?.style?.overridesByMode)
 
   return merged
 }
@@ -320,6 +345,10 @@ function extractPersistableState() {
     layers: runtime.state.layers,
     projection: runtime.state.projection,
     label: runtime.state.label,
+    style: {
+      mode: runtime.state.style.mode,
+      overridesByMode: runtime.state.style.overridesByMode,
+    },
   }
 }
 
@@ -378,6 +407,16 @@ function formatNumber(value) {
 }
 
 function buildRendererInput() {
+  const stylesConfig = deepClone(runtime.config.styles || {})
+  const overrideModes = Object.keys(runtime.state.style?.overridesByMode || {})
+  for (let i = 0; i < overrideModes.length; i += 1) {
+    const mode = overrideModes[i]
+    stylesConfig[mode] = {
+      ...(stylesConfig[mode] || {}),
+      ...(runtime.state.style.overridesByMode[mode] || {}),
+    }
+  }
+
   return {
     layers: runtime.state.layers,
     projection: runtime.state.projection,
@@ -391,9 +430,79 @@ function buildRendererInput() {
       minSliceHeightPx: runtime.state.label.minSliceHeightPx,
       fontSizePx: runtime.state.label.fontSizePx,
     },
+    style: runtime.state.style,
+    stylesConfig,
     colorResolution: runtime.config.colorResolution,
     gradeMetadataByCode: runtime.gradeMetadataByCode,
   }
+}
+
+function renderStyleTabs() {
+  styleTabs.innerHTML = PREVIEW_STYLE_OPTIONS
+    .map((option) => {
+      const active = runtime.state.style.mode === option.mode
+      return `<button type="button" class="segmented-btn ${active ? 'active' : ''}" data-style-mode="${escapeHtml(option.mode)}">${escapeHtml(option.label)}</button>`
+    })
+    .join('')
+}
+
+function getStyleTokenValue(mode, key, fallback = 0) {
+  const override = runtime.state.style?.overridesByMode?.[mode]?.[key]
+  if (Number.isFinite(Number(override))) return Number(override)
+  const configured = runtime.config?.styles?.[mode]?.[key]
+  if (Number.isFinite(Number(configured))) return Number(configured)
+  return fallback
+}
+
+function syncStyleControlDomValue(tokenKey, value) {
+  if (!styleControls) return
+  const valueText = formatNumber(value)
+  const valueRaw = String(value)
+
+  const inputs = styleControls.querySelectorAll('input[data-style-token]')
+  for (let i = 0; i < inputs.length; i += 1) {
+    const input = inputs[i]
+    if (input.dataset.styleToken !== tokenKey) continue
+    if (input.value !== valueRaw) input.value = valueRaw
+  }
+
+  const valueSpans = styleControls.querySelectorAll('[data-style-token-value]')
+  for (let i = 0; i < valueSpans.length; i += 1) {
+    const valueSpan = valueSpans[i]
+    if (valueSpan.dataset.styleTokenValue !== tokenKey) continue
+    valueSpan.textContent = valueText
+  }
+}
+
+function renderStyleControls() {
+  const mode = runtime.state.style.mode
+  const defs = getStyleControlDefs(mode)
+
+  if (!defs.length) {
+    styleControls.innerHTML = '<div class="style-controls-empty">Classic style is fixed baseline (no tunable controls).</div>'
+    resetStyleControlsButton.disabled = true
+    return
+  }
+
+  styleControls.innerHTML = defs
+    .map((def) => {
+      const value = getStyleTokenValue(mode, def.key, def.min)
+      return `
+        <div class="style-control-row" data-style-control-row="${escapeHtml(def.key)}">
+          <div class="style-control-head">
+            <label>${escapeHtml(def.label)}</label>
+            <span data-style-token-value="${escapeHtml(def.key)}">${escapeHtml(formatNumber(value))}</span>
+          </div>
+          <div class="style-control-inputs">
+            <input type="range" min="${escapeHtml(def.min)}" max="${escapeHtml(def.max)}" step="${escapeHtml(def.step)}" value="${escapeHtml(value)}" data-style-token="${escapeHtml(def.key)}" />
+            <input type="number" min="${escapeHtml(def.min)}" max="${escapeHtml(def.max)}" step="${escapeHtml(def.step)}" value="${escapeHtml(value)}" data-style-token="${escapeHtml(def.key)}" />
+          </div>
+        </div>
+      `
+    })
+    .join('')
+
+  resetStyleControlsButton.disabled = false
 }
 
 function renderDataWarning() {
@@ -484,11 +593,14 @@ function renderDiagnostics(output) {
   const minSliceApplied = output.diagnostics.minSlicePxApplied
 
   statsContainer.innerHTML = [
+    `<span class="pill">Style: ${escapeHtml(output.diagnostics.styleMode || 'classic_default')}</span>`,
     `<span class="pill">Min slice applied: ${formatNumber(minSliceApplied)} px</span>`,
     `<span class="pill">Front total height: ${formatNumber(output.diagnostics.totalHeightPx)} px</span>`,
     `<span class="pill">Fallbacks: ${fallbackCount}</span>`,
+    `<span class="pill">Patterns: ${output.diagnostics.patternCount || 0}</span>`,
+    `<span class="pill">Filters: ${output.diagnostics.filterCount || 0}</span>`,
     `<span class="pill">Unmapped codes: ${unmapped.length ? escapeHtml(unmapped.join(', ')) : 'none'}</span>`,
-    `<span class="pill ${bytes > SVG_WARN_BYTES ? 'fail' : ''}">SVG size: ${Math.round(bytes / 1024)} KB</span>`,
+    `<span class="pill ${bytes > SVG_WARN_BYTES ? 'fail' : ''}">SVG size: ${Math.round((output.diagnostics.svgBytes || bytes) / 1024)} KB</span>`,
   ].join('')
 
   mappingAuditBody.innerHTML = output.diagnostics.sliceAudit
@@ -531,11 +643,16 @@ function renderSvgOutput(output) {
   exportStatus.className = runtime.statusTone === 'warn' ? 'status-line warn' : 'status-line'
 }
 
-function renderAll() {
+function renderAll({ refreshStyleUi = true } = {}) {
   renderDataWarning()
   renderPresetOptions()
   renderLayerRows()
   renderProjectionControls()
+
+  if (refreshStyleUi) {
+    renderStyleTabs()
+    renderStyleControls()
+  }
 
   const output = generateMattressPreviewSvg(buildRendererInput())
   renderSvgOutput(output)
@@ -622,6 +739,65 @@ function handleLabelChange(field, value) {
   const numeric = Math.max(1, toNumber(value, label[field]))
   label[field] = field === 'fontSizePx' ? Math.max(8, numeric) : numeric
   runtime.state.label = label
+  renderAll()
+}
+
+function handleStyleModeChange(mode) {
+  const nextMode = normalizeStyleMode(mode, runtime.state.style.mode)
+  if (nextMode === runtime.state.style.mode) return
+  runtime.state.style = {
+    mode: nextMode,
+    overridesByMode: runtime.state.style.overridesByMode || {},
+  }
+  renderAll()
+}
+
+function setStyleControlValue(tokenKey, rawValue) {
+  const mode = runtime.state.style.mode
+  const def = getStyleControlDefs(mode).find((item) => item.key === tokenKey)
+  if (!def) return
+
+  const value = clampStyleControlValue(def, rawValue)
+  if (value === null) return
+
+  const baseValue = Number(runtime.config?.styles?.[mode]?.[def.key])
+  const nextOverrides = {
+    ...(runtime.state.style.overridesByMode || {}),
+  }
+  const nextModeOverrides = {
+    ...(nextOverrides[mode] || {}),
+  }
+
+  if (Number.isFinite(baseValue) && Math.abs(baseValue - value) < 0.00001) {
+    delete nextModeOverrides[def.key]
+  } else {
+    nextModeOverrides[def.key] = value
+  }
+
+  if (Object.keys(nextModeOverrides).length) {
+    nextOverrides[mode] = nextModeOverrides
+  } else {
+    delete nextOverrides[mode]
+  }
+
+  runtime.state.style = {
+    mode,
+    overridesByMode: nextOverrides,
+  }
+  syncStyleControlDomValue(tokenKey, value)
+  renderAll({ refreshStyleUi: false })
+}
+
+function resetActiveStyleControls() {
+  const mode = runtime.state.style.mode
+  const nextOverrides = {
+    ...(runtime.state.style.overridesByMode || {}),
+  }
+  delete nextOverrides[mode]
+  runtime.state.style = {
+    mode,
+    overridesByMode: nextOverrides,
+  }
   renderAll()
 }
 
@@ -714,6 +890,26 @@ depthDyInput.addEventListener('input', (event) => handleProjectionChange('depthD
 
 labelMinInput.addEventListener('input', (event) => handleLabelChange('minSliceHeightPx', event.target.value))
 labelFontInput.addEventListener('input', (event) => handleLabelChange('fontSizePx', event.target.value))
+
+styleTabs.addEventListener('click', (event) => {
+  const button = event.target.closest('button[data-style-mode]')
+  if (!button) return
+  handleStyleModeChange(button.dataset.styleMode)
+})
+
+styleControls.addEventListener('input', (event) => {
+  const input = event.target.closest('input[data-style-token]')
+  if (!input) return
+  setStyleControlValue(input.dataset.styleToken, input.value)
+})
+
+styleControls.addEventListener('change', (event) => {
+  const input = event.target.closest('input[data-style-token]')
+  if (!input) return
+  setStyleControlValue(input.dataset.styleToken, input.value)
+})
+
+resetStyleControlsButton.addEventListener('click', resetActiveStyleControls)
 
 copySvgButton.addEventListener('click', copySvg)
 downloadSvgButton.addEventListener('click', downloadSvg)

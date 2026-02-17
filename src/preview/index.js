@@ -1,6 +1,7 @@
 import { buildProjectedSlices } from './projection.js'
 import { buildMattressSvg } from './svgSerializer.js'
 import { normalizeCode, resolveColorFamily } from './colorResolver.js'
+import { normalizeStyleMode } from './styleTextureResolver.js'
 
 function round2(value) {
   return Math.round(value * 100) / 100
@@ -16,6 +17,7 @@ function normalizeLayers(layers = []) {
 
 export function generateMattressPreviewSvg(input = {}) {
   const layers = normalizeLayers(input.layers)
+  const styleMode = normalizeStyleMode(input?.style?.mode, input?.stylesConfig?.defaultMode || 'classic_default')
 
   const projected = buildProjectedSlices({
     layers,
@@ -67,6 +69,10 @@ export function generateMattressPreviewSvg(input = {}) {
       sideDarken: input?.colors?.sideDarken,
     },
     label: input?.label,
+    style: {
+      mode: styleMode,
+    },
+    styles: input?.stylesConfig || {},
   })
 
   const sliceAudit = enrichedSlices.map((slice, idx) => ({
@@ -84,12 +90,16 @@ export function generateMattressPreviewSvg(input = {}) {
     svg: serialized.svg,
     slices: serialized.sliceDiagnostics,
     diagnostics: {
+      styleMode,
       unmappedCodes: Array.from(unresolvedCodes).sort(),
       minSlicePxApplied: projected.minSlicePxApplied,
       totalHeightPx: projected.projection.frontHeight,
       keyPoints: projected.keyPoints,
       sliceAudit,
       viewBox: projected.viewBox,
+      patternCount: serialized.patternCount || 0,
+      filterCount: serialized.filterCount || 0,
+      svgBytes: new TextEncoder().encode(serialized.svg).length,
     },
   }
 }
